@@ -18,7 +18,7 @@ describe('fetchArrivals', () => {
       {
         vehicleId: '202607296734316',
         destinationNaptanId: '910GGOSPLOK',
-        timeToStation: 60,
+        timeToStation: 1,
         expectedArrival: '2026-07-29T16:21:16Z',
       },
       {
