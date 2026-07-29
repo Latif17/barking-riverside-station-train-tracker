@@ -1299,7 +1299,7 @@ instead.
 ```ts
 // poller/test/repository.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import { fetchPendingRows, upsertRows, insertSeedRows } from '../src/repository.js';
+import { fetchPendingRows, upsertRows, insertSeedRows, rowsExistForDate } from '../src/repository.js';
 
 function makeFakeClient(overrides: Record<string, any> = {}) {
   const eq2 = vi.fn().mockResolvedValue({ data: overrides.selectData ?? [], error: null });
@@ -1557,7 +1557,9 @@ main();
 
 ```dockerfile
 # poller/Dockerfile
-FROM node:20-alpine
+# Node 22+ required: @supabase/supabase-js resolved to a version whose
+# package.json declares engines.node >= 22 (found during Task 2 review).
+FROM node:22-alpine
 
 WORKDIR /app
 
