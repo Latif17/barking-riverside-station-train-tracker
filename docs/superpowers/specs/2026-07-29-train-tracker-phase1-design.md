@@ -22,25 +22,52 @@ and the poller's detection logic defined below.
   too coarse for this use case — so the poller runs outside Vercel entirely.
 - The user has a homelab and will run the poller there as a Docker container, with
   full control over polling frequency.
-- TfL Unified API is free and requires no auth for the endpoints used here.
+- The Realtime Trains (RTT) "Next Generation" API is free for personal,
+  non-commercial use but requires registering an account at `api-portal.rtt.io`
+  and requesting a bearer token. **The legacy `api.rtt.io` API is being
+  decommissioned 2026-09-30** — this design targets only the new API
+  (spec: `realtimetrains.github.io/api-specification`).
+- RTT's terms require the API token to never be embedded in a distributable /
+  public-facing application — it must stay server-side. This is a hard
+  constraint on the architecture: the public Vercel frontend can never call RTT
+  directly, and RTT enforces its own rate limits (minute/hour/day/week), so a
+  predictable, low-frequency homelab poller is the right shape regardless of the
+  Supabase caching benefits below.
 
-## TfL API findings (verified against live API on 2026-07-29)
+## Data source findings (verified 2026-07-29)
 
-- Station StopPoint id for Barking Riverside: `910GBARKRIV`. Line id: `suffragette`.
-- `/StopPoint/910GBARKRIV/Arrivals` returns live predictions per train
-  (`vehicleId`, `platformName`, `expectedArrival`, `timeToStation`, etc.) but
-  **has no field indicating cancellation.**
-- `/Line/suffragette/Status` returns only line-wide severity (e.g. "Good
-  Service"), not per-train status — not granular enough to detect an individual
-  cancelled service on an otherwise-fine line.
-- **Conclusion: cancellation must be inferred** by comparing the scheduled
-  timetable against what's actually observed in Arrivals over time. There is no
-  shortcut via a status flag.
-- `/Line/suffragette/Timetable/910GBARKRIV` is expected to provide the scheduled
-  departures needed to seed each day's expected services, but its exact response
-  shape (direction/day-type handling) has not yet been verified — **first
-  implementation task is a research spike against this endpoint** before writing
-  the seed job.
+- Barking Riverside's National Rail station code (CRS) is **`BGV`**, confirmed
+  via nationalrail.co.uk. This is a real, independent station code, distinct
+  from the TfL StopPoint id — RTT/Darwin identify stations by CRS code, not by
+  TfL's `naptanId`.
+- **TfL's own API does not carry Overground timetable data.**
+  `/Line/suffragette/Timetable/{stopPointId}` returns 404 for both Barking
+  Riverside and Gospel Oak, while the same endpoint shape works for a Tube line
+  (verified with `victoria`) — confirming this isn't a wrong-id mistake, TfL
+  simply doesn't publish it for Overground. This ruled out the original
+  TfL-arrivals-heuristic approach entirely: without a schedule, there's nothing
+  to compare live arrivals against.
+- **RTT's Next Generation API gives scheduled + actual + cancellation data
+  directly, per service, in one call** — no heuristic needed. Endpoint:
+  `GET /gb-nr/location?code=BGV&...` (bearer auth). Key response shape
+  (`components/schemas` in the RTT spec):
+  - Each service has `scheduleMetadata` (`uniqueIdentity`, `departureDate`,
+    `operator`, `inPassengerService`) and a `locations` array (stops along the
+    route), each with `locationMetadata` (`platform`, `line`) and
+    `temporalData: { arrival, departure, pass }`.
+  - Each of `arrival`/`departure` (`IndividualTemporalData`) carries:
+    `scheduleAdvertised` (booked time), `realtimeActual` (actual time, if it's
+    happened), `realtimeAdvertisedLateness` (delay in minutes),
+    **`isCancelled: boolean`** (set directly by RTT/Darwin — no inference
+    needed), and `cancellationReasonCode`.
+  - Since Barking Riverside is a terminus, each service's `locations` entry for
+    BGV will have only `departure` populated (service starting here, heading to
+    Gospel Oak) or only `arrival` populated (service terminating here, having
+    come from Gospel Oak) — this is what drives the `direction` field below.
+  - Bonus for the future notification use case: `isCancelled` can flip to true
+    as soon as Network Rail announces a cancellation, which may be well before
+    the scheduled time — faster detection than any grace-period heuristic could
+    achieve.
 
 ## Architecture
 
@@ -48,44 +75,47 @@ and the poller's detection logic defined below.
 ┌──────────────────────┐         ┌────────────────────┐         ┌───────────────────────┐
 │  Homelab (Docker)    │  writes │                     │  reads  │  Next.js on Vercel    │
 │  poller script       │────────▶│  Supabase Postgres  │────────▶│  (dashboard frontend)  │
-│  polls TfL API       │ service │  (+ RLS policies)   │  anon   │                        │
+│  polls RTT API       │ service │  (+ RLS policies)   │  anon   │                        │
 └──────────────────────┘  role   └────────────────────┘  key    └───────────────────────┘
          │
          ▼
-   TfL Unified API
-   (Line/suffragette/*, StopPoint/910GBARKRIV/*)
+   Realtime Trains API (api-portal.rtt.io)
+   GET /gb-nr/location?code=BGV
 ```
 
-- **Poller** (homelab, Docker container): the only component that talks to TfL and
-  the only one with write access to Supabase. Uses a Supabase **service-role
-  key**, which never leaves the homelab environment.
-- **Supabase**: Postgres + Row-Level Security. The **anon key** (used by the
-  frontend) is granted `SELECT` only — no insert/update/delete policy exists for
-  it, so even a leaked anon key can't be used to write fake data.
-- **Frontend** (Vercel, free tier): Next.js app querying Supabase directly via the
-  Supabase JS client. No custom backend/API layer on Vercel — keeps the app
-  entirely within free-tier function-invocation limits and reduces moving parts.
-  (Considered adding a Next.js API layer as a middle tier; rejected as
-  unnecessary complexity for the current scope.)
+- **Poller** (homelab, Docker container): the only component that talks to RTT
+  (bearer token stays in the homelab environment, per RTT's terms) and the only
+  one with write access to Supabase, via a Supabase **service-role key**.
+- **Supabase's role has changed from the original plan**: since RTT already
+  computes scheduled/actual/cancellation data, Supabase is no longer doing any
+  inference — it's a caching + historical-archive layer. It's still needed
+  because (a) the RTT token can never be exposed to the public frontend, (b) RTT
+  rate-limits API access in a way that's incompatible with unpredictable public
+  dashboard traffic, and (c) an independent archive protects against RTT API
+  changes (they're already mid-migration off the legacy API).
+  Postgres + Row-Level Security: the **anon key** (frontend) is granted
+  `SELECT` only — no insert/update/delete policy exists for it.
+- **Frontend** (Vercel, free tier): Next.js app querying Supabase directly via
+  the Supabase JS client. No custom backend/API layer on Vercel.
 
 ## Data model (Supabase Postgres)
 
 ```sql
 create table scheduled_services (
-  id              uuid primary key default gen_random_uuid(),
-  service_date    date not null,
-  direction       text not null check (direction in ('towards_barking', 'towards_gospel_oak')),
-  scheduled_time  timestamptz not null,
-  destination     text,                  -- e.g. "Barking", "Gospel Oak"
-  peak_period     text not null check (peak_period in ('am_peak', 'pm_peak', 'off_peak')),
-  status          text not null default 'pending'
-                    check (status in ('pending', 'on_time', 'delayed', 'cancelled')),
-  observed_time   timestamptz,           -- actual arrival, if seen
-  delay_minutes   int,                   -- observed_time - scheduled_time, in minutes
-  vehicle_id      text,                  -- TfL vehicleId, if matched
-  created_at      timestamptz not null default now(),
-  updated_at      timestamptz not null default now(),
-  unique (service_date, direction, scheduled_time)
+  id                    uuid primary key default gen_random_uuid(),
+  rtt_service_uid       text not null,        -- scheduleMetadata.uniqueIdentity
+  service_date          date not null,        -- scheduleMetadata.departureDate
+  direction             text not null check (direction in ('departing', 'arriving')),
+  scheduled_time        timestamptz not null, -- temporalData.{arrival,departure}.scheduleAdvertised
+  peak_period           text not null check (peak_period in ('am_peak', 'pm_peak', 'off_peak')),
+  status                text not null default 'pending'
+                          check (status in ('pending', 'on_time', 'delayed', 'cancelled')),
+  observed_time          timestamptz,          -- realtimeActual, once populated
+  delay_minutes          int,                  -- realtimeAdvertisedLateness
+  cancellation_reason    text,                 -- cancellationReasonCode, if cancelled
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now(),
+  unique (rtt_service_uid, service_date, direction)
 );
 
 create index on scheduled_services (service_date, peak_period);
@@ -93,36 +123,45 @@ create index on scheduled_services (status);
 ```
 
 Notes:
-- `peak_period` is computed once at seed time from `scheduled_time`, using
+- `peak_period` is computed from `scheduled_time` at first-seen time, using
   standard weekday commute windows: AM peak ~06:30–09:30, PM peak ~16:00–19:00,
   Mon–Fri; everything else (including weekends) is `off_peak`. Precomputing keeps
   dashboard queries simple (no time-math per read).
-- `status` starts as `pending` and is updated by the poller as trains are
-  observed or the cancellation grace period elapses.
-- The `unique` constraint makes re-running the daily seed job a safe no-op.
+- `status` starts as `pending` (service hasn't happened yet) and is set directly
+  from RTT's own fields on each poll: `isCancelled = true` → `cancelled`;
+  `realtimeActual` populated → `on_time` (lateness ≤ 0) or `delayed`
+  (lateness > 0); otherwise stays `pending`.
+- The `unique` constraint on `(rtt_service_uid, service_date, direction)` makes
+  every poll an upsert — safe to re-run, no separate seed/update distinction
+  needed.
 - RLS: `anon` role → `SELECT` only. Service role (poller) → full read/write.
 
 ## Poller (Docker container, homelab)
 
-**Daily seed job** (once per service day):
-1. Call `/Line/suffragette/Timetable/910GBARKRIV` for both directions.
-2. Insert one `scheduled_services` row per scheduled departure with `peak_period`
-   computed from `scheduled_time`.
+Unlike the original TfL-based design, there's no separate "seed the day's
+timetable, then match live arrivals against it" split — RTT's response already
+contains schedule + actual + cancellation together, so every poll is the same
+operation:
 
-**Polling loop** (every 30–60s during service hours):
-1. Fetch `/StopPoint/910GBARKRIV/Arrivals`.
-2. Match each arrival to a `pending` row (same direction, closest `scheduled_time`
-   within a tolerance window); record `vehicle_id`.
-3. When a matched train's `timeToStation` reaches ~0 (i.e. it arrives), set
-   `status` to `on_time` or `delayed`, and fill in `observed_time` and
-   `delay_minutes`.
-4. Sweep pass: any `pending` row whose `scheduled_time` + grace period (e.g. 15
-   minutes) has elapsed with no match → `status = cancelled`.
+**Polling loop** (every 2–5 minutes; exact interval to be tuned once real RTT
+rate limits are confirmed after registering — see Task 1 in the implementation
+plan):
+1. Call `GET /gb-nr/location?code=BGV&date=<today>` (bearer token from env).
+2. For each returned service, find its `locations` entry for `code = BGV` and
+   read whichever of `arrival`/`departure` is populated — this determines
+   `direction` (`departure` populated → `departing`; `arrival` populated →
+   `arriving`).
+3. Upsert into `scheduled_services` on `(rtt_service_uid, service_date,
+   direction)`: set `scheduled_time` from `scheduleAdvertised` (first time seen
+   only — it shouldn't change), and `status`/`observed_time`/`delay_minutes`/
+   `cancellation_reason` from the logic above (re-evaluated every poll, since
+   `isCancelled` and `realtimeActual` can change between polls as the day
+   progresses).
 
-**Resilience:** TfL API errors/timeouts are logged and retried on the next cycle.
-A missed poll doesn't lose data — matching happens against the timetable over
-many cycles, not a single snapshot, so coarser timing on one cycle just means a
-later cycle catches the match.
+**Resilience:** RTT API errors/timeouts (including 429 rate-limit responses,
+which include a `Retry-After` header) are logged and retried with backoff —
+never crash the container. A missed poll doesn't lose data, since the next poll
+re-fetches the full current state for the day, not a delta.
 
 ## Frontend / Dashboard
 
@@ -157,12 +196,12 @@ later cycle catches the match.
 
 ## Testing
 
-- Poller: unit tests for the pure logic (arrival-matching algorithm,
-  peak-period computation) using fixture data captured from real TfL API
-  responses (already verified during design — see "TfL API findings" above). No
-  live API calls in tests.
+- Poller: unit tests for the pure logic (status derivation from
+  `isCancelled`/`realtimeActual`, direction detection, peak-period computation)
+  using fixture JSON matching the RTT schema documented above. No live API
+  calls in tests.
 - Before enabling writes, run the poller in a dry-run/log-only mode against real
-  TfL data for a full day to sanity-check matching logic.
+  RTT data for a full day to sanity-check the upsert logic.
 - Frontend: component-level tests for widgets against mock Supabase data.
 
 ## Explicitly out of scope for Phase 1
