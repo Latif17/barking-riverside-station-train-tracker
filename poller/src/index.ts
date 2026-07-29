@@ -5,14 +5,11 @@ import { fetchPendingRows, upsertRows, insertSeedRows, rowsExistForDate } from '
 import { fetchArrivals } from './tflClient.js';
 import { runPollCycle } from './pollCycle.js';
 import { buildSeedRows } from './schedule.js';
+import { todayLondon, yesterdayLondon } from './dateHelpers.js';
 import scheduleConfig from '../schedule.json' with { type: 'json' };
 import type { ScheduleConfig } from './types.js';
 
 const DRY_RUN = process.env.DRY_RUN === 'true';
-
-function todayLondon(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(new Date());
-}
 
 async function ensureTodaySeeded(client: ReturnType<typeof createSupabaseClient>, serviceDate: string) {
   // Checks for ANY row on this date, not just pending ones — otherwise a
@@ -40,10 +37,12 @@ async function pollOnce(config: ReturnType<typeof loadConfig>, client: ReturnTyp
   const serviceDate = todayLondon();
   await ensureTodaySeeded(client, serviceDate);
 
-  const [pendingRows, predictions] = await Promise.all([
+  const [todayRows, yesterdayRows, predictions] = await Promise.all([
     fetchPendingRows(client, serviceDate),
+    fetchPendingRows(client, yesterdayLondon()),
     fetchArrivals(config.tflStopPointId),
   ]);
+  const pendingRows = [...todayRows, ...yesterdayRows];
 
   const changed = runPollCycle(pendingRows, predictions, new Date());
 

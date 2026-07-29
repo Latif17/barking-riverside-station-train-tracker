@@ -6,9 +6,15 @@ Supabase.
 
 ## Setup
 
-1. Copy `.env.example` to `.env` and fill in `SUPABASE_URL` and
+1. Apply the database migration to your Supabase project: open the SQL
+   Editor in the Supabase dashboard, paste the contents of
+   `supabase/migrations/0001_init.sql` (repo root, one level up from this
+   `poller/` directory), and run it — or apply it from the repo root with the
+   Supabase CLI, e.g. `supabase db push`. The poller will fail on its first
+   cycle without the `scheduled_services` table this creates.
+2. Copy `.env.example` to `.env` and fill in `SUPABASE_URL` and
    `SUPABASE_SERVICE_ROLE_KEY` (from your Supabase project's API settings).
-2. Make sure `schedule.json` has real timetable data (see the file's
+3. Make sure `schedule.json` has real timetable data (see the file's
    `effective_from` field) — see "Updating the schedule" below.
 
 ## Running locally
