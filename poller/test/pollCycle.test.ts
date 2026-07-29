@@ -42,6 +42,43 @@ describe('runPollCycle', () => {
     expect(changed[0].last_seen_time_to_station).toBe(600);
   });
 
+  it('matches two predictions in the same poll to two different rows, even when both are nearest to the same row', () => {
+    // Regression test: candidates must be sourced from rows already matched
+    // earlier in this SAME poll cycle, not from the stale pendingRows
+    // snapshot — otherwise two predictions that are both nearest to row 'a'
+    // (07:01 and 07:02 are both much closer to 07:00 than to 07:10) would
+    // collide on row 'a', silently overwriting the first match and leaving
+    // row 'b' unmatched.
+    const rows = [
+      row({ id: 'a', scheduled_time: '2026-07-29T07:00:00.000Z' }),
+      row({ id: 'b', scheduled_time: '2026-07-29T07:10:00.000Z' }),
+    ];
+    const predictions: TflPrediction[] = [
+      {
+        vehicleId: 'veh-1',
+        destinationNaptanId: '910GGOSPLOK',
+        timeToStation: 60,
+        expectedArrival: '2026-07-29T07:01:00.000Z', // nearest to 'a' (1 min vs 9 min)
+      },
+      {
+        vehicleId: 'veh-2',
+        destinationNaptanId: '910GGOSPLOK',
+        timeToStation: 120,
+        expectedArrival: '2026-07-29T07:02:00.000Z', // also nearest to 'a' (2 min vs 8 min)
+      },
+    ];
+
+    const changed = runPollCycle(rows, predictions, new Date('2026-07-29T06:52:00.000Z'));
+
+    expect(changed).toHaveLength(2);
+    const byId = new Map(changed.map((r) => [r.id, r]));
+    const vehicleIds = new Set(changed.map((r) => r.vehicle_id));
+    expect(vehicleIds.size).toBe(2); // matched to two distinct vehicles, not both colliding on one row
+    expect(byId.get('a')?.vehicle_id).toBeTruthy();
+    expect(byId.get('b')?.vehicle_id).toBeTruthy();
+    expect(byId.get('a')?.vehicle_id).not.toBe(byId.get('b')?.vehicle_id);
+  });
+
   it('does not match a prediction more than 10 minutes from any pending scheduled_time', () => {
     const rows = [row({ id: 'a', scheduled_time: '2026-07-29T07:00:00.000Z' })];
     const predictions: TflPrediction[] = [

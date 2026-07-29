@@ -47,7 +47,9 @@ export function runPollCycle(
 
     seenVehicleIds.add(prediction.vehicleId);
 
-    const alreadyMatchedRow = pendingRows.find((r) => r.vehicle_id === prediction.vehicleId);
+    const alreadyMatchedRow = pendingRows.find(
+      (r) => r.vehicle_id === prediction.vehicleId && r.status === 'pending',
+    );
     if (alreadyMatchedRow) {
       const updated = {
         ...rowsById.get(alreadyMatchedRow.id!)!,
@@ -61,7 +63,7 @@ export function runPollCycle(
 
     if (matchedVehicleIds.has(prediction.vehicleId)) continue; // matched to a row not in this pendingRows batch
 
-    const candidates = pendingRows.filter(
+    const candidates = [...rowsById.values()].filter(
       (r) => r.direction === direction && r.status === 'pending' && !r.vehicle_id,
     );
     if (candidates.length === 0) continue;
