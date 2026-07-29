@@ -1,0 +1,15 @@
+{
+  "effective_from": "2026-07-29",
+  "weekday": {
+    "departing": [],
+    "arriving": []
+  },
+  "saturday": {
+    "departing": [],
+    "arriving": []
+  },
+  "sunday": {
+    "departing": [],
+    "arriving": []
+  }
+}
