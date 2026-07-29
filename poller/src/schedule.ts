@@ -15,23 +15,26 @@ function dayTypeFor(serviceDate: string): 'weekday' | 'saturday' | 'sunday' {
   return 'weekday';
 }
 
+function londonUtcOffsetHoursForDate(serviceDate: string): number {
+  // Anchor at local noon so we never straddle a day boundary or a DST
+  // transition (which happen at 01:00/02:00 local, not noon).
+  const noonUtcGuess = new Date(`${serviceDate}T12:00:00.000Z`);
+  const londonHourAtNoon = Number(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/London',
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).format(noonUtcGuess),
+  );
+  return londonHourAtNoon - 12;
+}
+
 function londonTimeToUtcIso(serviceDate: string, hhmm: string): string {
   const [hour, minute] = hhmm.split(':').map(Number);
-
-  // Find the UTC instant whose Europe/London wall-clock time matches
-  // serviceDate + hh:mm, by starting from a UTC guess and correcting for
-  // the actual London offset at that date (handles BST/GMT correctly).
-  const naiveUtcGuess = new Date(`${serviceDate}T${hhmm}:00.000Z`);
-  const londonPartsAtGuess = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Europe/London',
-    hour: '2-digit',
-    hourCycle: 'h23',
-  }).format(naiveUtcGuess);
-  const londonHourAtGuess = Number(londonPartsAtGuess);
-  const offsetHours = londonHourAtGuess - hour;
-
-  const corrected = new Date(naiveUtcGuess.getTime() - offsetHours * 60 * 60 * 1000);
-  return corrected.toISOString();
+  const offsetHours = londonUtcOffsetHoursForDate(serviceDate);
+  const [year, month, day] = serviceDate.split('-').map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day, hour - offsetHours, minute, 0, 0));
+  return utc.toISOString();
 }
 
 function rowsForDirection(

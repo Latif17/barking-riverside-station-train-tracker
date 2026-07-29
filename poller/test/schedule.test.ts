@@ -58,4 +58,17 @@ describe('buildSeedRows', () => {
     const rows = buildSeedRows(bstSchedule, '2026-07-29');
     expect(rows[0].scheduled_time).toBe('2026-07-29T06:00:00.000Z');
   });
+
+  it('handles late evening times in BST without day-wrap corruption', () => {
+    const bstSchedule: ScheduleConfig = {
+      effective_from: '2026-01-01',
+      weekday: { departing: ['23:15'], arriving: [] },
+      saturday: { departing: [], arriving: [] },
+      sunday: { departing: [], arriving: [] },
+    };
+    // 2026-07-29 is a Wednesday, BST (UTC+1): 23:15 London = 22:15 UTC, same calendar day
+    const rows = buildSeedRows(bstSchedule, '2026-07-29');
+    expect(rows[0].scheduled_time).toBe('2026-07-29T22:15:00.000Z');
+    expect(rows[0].service_date).toBe('2026-07-29');
+  });
 });
