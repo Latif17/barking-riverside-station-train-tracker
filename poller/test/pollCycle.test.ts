@@ -196,6 +196,39 @@ describe('runPollCycle', () => {
     expect(changed[0].delay_minutes).toBe(5);
   });
 
+  it('does not re-match a vehicle_id to a new pending row once it has already resolved an earlier row', () => {
+    // Regression test: a full one-way trip on this line takes well over 30
+    // minutes, so the same vehicleId reappearing 15 minutes after it already
+    // resolved row 'a' cannot be a genuine second departure — it must be
+    // ignored, not bound to row 'b'. This relies on the caller (index.ts)
+    // having included the already-resolved row in the input array (see
+    // repository.fetchRecentlyResolvedRows) so its vehicle_id remains visible
+    // to the dedup check below, even though it's no longer 'pending'.
+    const rows = [
+      row({
+        id: 'a',
+        scheduled_time: '2026-07-29T07:00:00.000Z',
+        status: 'on_time',
+        vehicle_id: 'veh-1',
+        observed_time: '2026-07-29T06:58:00.000Z',
+        delay_minutes: -2,
+      }),
+      row({ id: 'b', scheduled_time: '2026-07-29T07:15:00.000Z' }),
+    ];
+    const predictions: TflPrediction[] = [
+      {
+        vehicleId: 'veh-1',
+        destinationNaptanId: '910GGOSPLOK',
+        timeToStation: 60,
+        expectedArrival: '2026-07-29T07:16:00.000Z',
+      },
+    ];
+
+    const changed = runPollCycle(rows, predictions, new Date('2026-07-29T07:15:00.000Z'));
+
+    expect(changed).toHaveLength(0);
+  });
+
   it('ignores predictions with an unrecognised destination', () => {
     const rows = [row({ id: 'a', scheduled_time: '2026-07-29T07:00:00.000Z' })];
     const predictions: TflPrediction[] = [

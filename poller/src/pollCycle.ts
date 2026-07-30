@@ -9,6 +9,16 @@ const CANCELLATION_GRACE_MS = 15 * 60 * 1000;     // 15 minutes
 const FORCE_RESOLVE_MS = 30 * 60 * 1000;          // 30 minutes
 const DELAY_THRESHOLD_MINUTES = 3;
 
+// A physical train's one-way trip on this line takes well over 30 minutes,
+// so the same TfL vehicleId cannot legitimately produce two matches less
+// than that far apart. 20 minutes comfortably covers the ~15-16 minute
+// schedule spacing (the gap this guards against) while staying short enough
+// to never block a genuine same-vehicle reuse later in the day. Callers
+// (see repository.fetchRecentlyResolvedRows) must include already-resolved
+// rows scheduled within this window so their vehicle_id stays visible to
+// the dedup check below — resolved rows aren't touched otherwise.
+export const VEHICLE_REUSE_COOLDOWN_MS = 20 * 60 * 1000;
+
 function resolveArrival(row: ScheduledServiceRow): ScheduledServiceRow {
   // Project the last known countdown forward rather than using last_seen_at
   // raw: a train last seen 400s out at 06:58 most likely arrived around

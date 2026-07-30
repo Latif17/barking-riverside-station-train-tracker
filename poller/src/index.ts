@@ -1,9 +1,15 @@
 // poller/src/index.ts
 import { loadConfig } from './config.js';
 import { createSupabaseClient } from './supabaseClient.js';
-import { fetchPendingRows, upsertRows, insertSeedRows, rowsExistForDate } from './repository.js';
+import {
+  fetchPendingRows,
+  fetchRecentlyResolvedRows,
+  upsertRows,
+  insertSeedRows,
+  rowsExistForDate,
+} from './repository.js';
 import { fetchArrivals } from './tflClient.js';
-import { runPollCycle } from './pollCycle.js';
+import { runPollCycle, VEHICLE_REUSE_COOLDOWN_MS } from './pollCycle.js';
 import { buildSeedRows } from './schedule.js';
 import { todayLondon, yesterdayLondon } from './dateHelpers.js';
 import scheduleConfig from '../schedule.json' with { type: 'json' };
@@ -37,14 +43,25 @@ async function pollOnce(config: ReturnType<typeof loadConfig>, client: ReturnTyp
   const serviceDate = todayLondon();
   await ensureTodaySeeded(client, serviceDate);
 
-  const [todayRows, yesterdayRows, predictions] = await Promise.all([
-    fetchPendingRows(client, serviceDate),
-    fetchPendingRows(client, yesterdayLondon()),
-    fetchArrivals(config.tflStopPointId),
-  ]);
-  const pendingRows = [...todayRows, ...yesterdayRows];
+  const now = new Date();
+  const cooldownSinceIso = new Date(now.getTime() - VEHICLE_REUSE_COOLDOWN_MS).toISOString();
+  const yesterdayDate = yesterdayLondon();
 
-  const changed = runPollCycle(pendingRows, predictions, new Date());
+  const [todayRows, yesterdayRows, recentlyResolvedToday, recentlyResolvedYesterday, predictions] =
+    await Promise.all([
+      fetchPendingRows(client, serviceDate),
+      fetchPendingRows(client, yesterdayDate),
+      fetchRecentlyResolvedRows(client, serviceDate, cooldownSinceIso),
+      fetchRecentlyResolvedRows(client, yesterdayDate, cooldownSinceIso),
+      fetchArrivals(config.tflStopPointId),
+    ]);
+  // Resolved rows are included only so their vehicle_id remains visible to
+  // runPollCycle's reuse-dedup check (see VEHICLE_REUSE_COOLDOWN_MS) —
+  // runPollCycle never mutates a row that isn't 'pending', so merging them
+  // in here is safe.
+  const pendingRows = [...todayRows, ...yesterdayRows, ...recentlyResolvedToday, ...recentlyResolvedYesterday];
+
+  const changed = runPollCycle(pendingRows, predictions, now);
 
   if (changed.length === 0) return;
 

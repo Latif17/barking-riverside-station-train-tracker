@@ -16,6 +16,22 @@ export async function fetchPendingRows(
   return (data ?? []) as ScheduledServiceRow[];
 }
 
+export async function fetchRecentlyResolvedRows(
+  client: SupabaseClient,
+  serviceDate: string,
+  sinceIso: string,
+): Promise<ScheduledServiceRow[]> {
+  const { data, error } = await client
+    .from('scheduled_services')
+    .select('*')
+    .eq('service_date', serviceDate)
+    .neq('status', 'pending')
+    .gte('scheduled_time', sinceIso);
+
+  if (error) throw new Error(`fetchRecentlyResolvedRows failed: ${error.message}`);
+  return (data ?? []) as ScheduledServiceRow[];
+}
+
 export async function upsertRows(client: SupabaseClient, rows: ScheduledServiceRow[]): Promise<void> {
   if (rows.length === 0) return;
   const { error } = await client.from('scheduled_services').upsert(rows, { onConflict: 'id' });
