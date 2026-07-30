@@ -2,6 +2,7 @@
 
 export interface Config {
   tflStopPointId: string;
+  barkingStopPointId: string;
   tflLineId: string;
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
@@ -19,6 +20,7 @@ function requireEnv(name: string): string {
 export function loadConfig(): Config {
   return {
     tflStopPointId: '910GBARKRIV',
+    barkingStopPointId: '910GBARKING',
     tflLineId: 'suffragette',
     supabaseUrl: requireEnv('SUPABASE_URL'),
     supabaseServiceRoleKey: requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
