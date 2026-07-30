@@ -40,3 +40,19 @@ export async function rowsExistForDate(client: SupabaseClient, serviceDate: stri
   if (error) throw new Error(`rowsExistForDate failed: ${error.message}`);
   return (data ?? []).length > 0;
 }
+
+export async function fetchRecentlyResolvedRows(
+  client: SupabaseClient,
+  serviceDate: string,
+  cooldownSinceIso: string,
+): Promise<ScheduledServiceRow[]> {
+  const { data, error } = await client
+    .from('scheduled_services')
+    .select('*')
+    .eq('service_date', serviceDate)
+    .neq('status', 'pending')
+    .gte('last_seen_at', cooldownSinceIso);
+
+  if (error) throw new Error(`fetchRecentlyResolvedRows failed: ${error.message}`);
+  return (data ?? []) as ScheduledServiceRow[];
+}
