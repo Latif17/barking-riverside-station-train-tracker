@@ -203,13 +203,23 @@ export function runPollCycle(
     if (!confirmedAtBarkingRiverside.has(prediction.vehicleId)) continue;
     if (usedForDeparting.has(prediction.vehicleId)) continue;
 
+    // Barking's expectedArrival is ~7 minutes after the real Barking
+    // Riverside departure time (that's the run-time gap). Correct it back
+    // to an estimated BR departure time before comparing against candidate
+    // scheduled_time, so the match tolerance is symmetric around the real
+    // event rather than skewed by the run-time gap — otherwise a train
+    // running just a few minutes late could fall outside MATCH_TOLERANCE_MS
+    // and be missed entirely.
+    const estimatedDepartureMs =
+      new Date(prediction.expectedArrival).getTime() - BARKING_RIVERSIDE_TO_BARKING_RUN_MS;
+
     const matched = matchNearestCandidate(
       rowsById,
       changed,
       'departing',
       prediction.vehicleId,
       prediction.timeToStation,
-      new Date(prediction.expectedArrival).getTime(),
+      estimatedDepartureMs,
       now,
     );
     if (matched) usedForDeparting.add(prediction.vehicleId);

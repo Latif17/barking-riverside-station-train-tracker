@@ -261,6 +261,47 @@ describe('runPollCycle — departing direction (Barking confirmation)', () => {
     expect(departingChange!.last_seen_time_to_station).toBe(400);
   });
 
+  it('matches a Barking outbound sighting even when the train is running several minutes late', () => {
+    const priorArrival = row({
+      id: 'prior-arrival',
+      direction: 'arriving',
+      scheduled_time: '2026-07-29T06:52:00.000Z',
+      status: 'on_time',
+      vehicle_id: 'veh-1',
+      observed_time: '2026-07-29T06:52:30.000Z',
+      delay_minutes: 1,
+    });
+    const departingCandidate = row({
+      id: 'departing',
+      direction: 'departing',
+      scheduled_time: '2026-07-29T07:03:00.000Z',
+    });
+    // Train is 6 minutes late leaving Barking Riverside (~07:09 instead of
+    // 07:03), so it reaches Barking around 07:16 -- 13 minutes after the
+    // *scheduled* departure time, which is outside MATCH_TOLERANCE_MS unless
+    // the match target is corrected back to an estimated BR departure time
+    // first (07:16 minus the 7 min run time = 07:09, only 6 min from 07:03).
+    const barkingPredictions: TflPrediction[] = [
+      {
+        vehicleId: 'veh-1',
+        destinationNaptanId: '910GGOSPLOK',
+        timeToStation: 400,
+        expectedArrival: '2026-07-29T07:16:00.000Z',
+      },
+    ];
+
+    const changed = runPollCycle(
+      [priorArrival, departingCandidate],
+      [],
+      barkingPredictions,
+      new Date('2026-07-29T07:09:20.000Z'),
+    );
+
+    const departingChange = changed.find((r) => r.id === 'departing');
+    expect(departingChange).toBeTruthy();
+    expect(departingChange!.vehicle_id).toBe('veh-1');
+  });
+
   it('ignores a Barking outbound sighting when the vehicle was never confirmed at Barking Riverside (short-formed at Barking)', () => {
     const departingCandidate = row({
       id: 'departing',
