@@ -60,12 +60,13 @@ function updateLastSeenIfAlreadyMatched(
   rowsById: Map<string, ScheduledServiceRow>,
   pendingRows: ScheduledServiceRow[],
   changed: Map<string, ScheduledServiceRow>,
+  direction: Direction,
   vehicleId: string,
   timeToStation: number,
   now: Date,
 ): boolean {
   const alreadyMatchedRow = pendingRows.find(
-    (r) => r.vehicle_id === vehicleId && r.status === 'pending',
+    (r) => r.vehicle_id === vehicleId && r.status === 'pending' && r.direction === direction,
   );
   if (!alreadyMatchedRow) return false;
 
@@ -156,6 +157,7 @@ export function runPollCycle(
         rowsById,
         pendingRows,
         changed,
+        'arriving',
         prediction.vehicleId,
         prediction.timeToStation,
         now,
@@ -189,6 +191,7 @@ export function runPollCycle(
         rowsById,
         pendingRows,
         changed,
+        'departing',
         prediction.vehicleId,
         prediction.timeToStation,
         now,

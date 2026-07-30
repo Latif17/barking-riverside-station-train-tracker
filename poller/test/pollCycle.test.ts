@@ -390,4 +390,50 @@ describe('runPollCycle — departing direction (Barking confirmation)', () => {
 
     expect(changed).toHaveLength(0);
   });
+
+  it('does not let a Barking sighting hijack the vehicle\'s still-pending arriving row instead of matching the departing candidate', () => {
+    // Regression test: a vehicle's inbound (arriving) and outbound (departing)
+    // workings can share the same vehicleId and overlap in time at a
+    // terminus. If updateLastSeenIfAlreadyMatched ever matched across
+    // directions, a Barking sighting would silently update the still-pending
+    // arriving row instead of reaching the departing candidate below --
+    // corrupting the arriving row's timing data and leaving the departing
+    // row unmatched (later wrongly cancelled).
+    const pendingArrival = row({
+      id: 'pending-arrival',
+      direction: 'arriving',
+      scheduled_time: '2026-07-29T06:52:00.000Z',
+      vehicle_id: 'veh-1',
+      last_seen_time_to_station: 120,
+      last_seen_at: '2026-07-29T07:02:58.000Z',
+    });
+    const departingCandidate = row({
+      id: 'departing',
+      direction: 'departing',
+      scheduled_time: '2026-07-29T07:03:00.000Z',
+    });
+    const barkingPredictions: TflPrediction[] = [
+      {
+        vehicleId: 'veh-1',
+        destinationNaptanId: '910GGOSPLOK',
+        timeToStation: 400,
+        expectedArrival: '2026-07-29T07:10:00.000Z',
+      },
+    ];
+
+    const changed = runPollCycle(
+      [pendingArrival, departingCandidate],
+      [],
+      barkingPredictions,
+      new Date('2026-07-29T07:03:20.000Z'),
+    );
+
+    const departingChange = changed.find((r) => r.id === 'departing');
+    expect(departingChange).toBeTruthy();
+    expect(departingChange!.vehicle_id).toBe('veh-1');
+
+    // The pending arriving row must be untouched by this Barking sighting.
+    const arrivalChange = changed.find((r) => r.id === 'pending-arrival');
+    expect(arrivalChange).toBeUndefined();
+  });
 });
