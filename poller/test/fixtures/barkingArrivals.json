@@ -1,0 +1,29 @@
+[
+  {
+    "vehicleId": "202607307106962",
+    "naptanId": "910GBARKING",
+    "lineId": "suffragette",
+    "destinationNaptanId": "910GGOSPLOK",
+    "destinationName": "Gospel Oak Rail Station",
+    "timeToStation": 245,
+    "expectedArrival": "2026-07-30T09:09:00Z"
+  },
+  {
+    "vehicleId": "202607306734472",
+    "naptanId": "910GBARKING",
+    "lineId": "suffragette",
+    "destinationNaptanId": "910GBARKRIV",
+    "destinationName": "Barking Riverside",
+    "timeToStation": 441,
+    "expectedArrival": "2026-07-30T09:12:16Z"
+  },
+  {
+    "vehicleId": "some-other-line-vehicle",
+    "naptanId": "910GBARKING",
+    "lineId": "c2c",
+    "destinationNaptanId": "910GGOSPLOK",
+    "destinationName": "Irrelevant",
+    "timeToStation": 100,
+    "expectedArrival": "2026-07-30T09:05:00Z"
+  }
+]

@@ -20,6 +20,7 @@ describe('loadConfig', () => {
     expect(config.supabaseUrl).toBe('https://example.supabase.co');
     expect(config.supabaseServiceRoleKey).toBe('test-key');
     expect(config.tflStopPointId).toBe('910GBARKRIV');
+    expect(config.barkingStopPointId).toBe('910GBARKING');
     expect(config.tflLineId).toBe('suffragette');
     expect(config.pollIntervalMs).toBe(45000);
   });

@@ -9,6 +9,7 @@ import {
   rowsExistForDate,
 } from './repository.js';
 import { fetchArrivals } from './tflClient.js';
+import { fetchBarkingOutboundArrivals } from './barkingClient.js';
 import { runPollCycle, VEHICLE_REUSE_COOLDOWN_MS } from './pollCycle.js';
 import { buildSeedRows } from './schedule.js';
 import { todayLondon, yesterdayLondon } from './dateHelpers.js';
@@ -47,21 +48,28 @@ async function pollOnce(config: ReturnType<typeof loadConfig>, client: ReturnTyp
   const cooldownSinceIso = new Date(now.getTime() - VEHICLE_REUSE_COOLDOWN_MS).toISOString();
   const yesterdayDate = yesterdayLondon();
 
-  const [todayRows, yesterdayRows, recentlyResolvedToday, recentlyResolvedYesterday, predictions] =
-    await Promise.all([
-      fetchPendingRows(client, serviceDate),
-      fetchPendingRows(client, yesterdayDate),
-      fetchRecentlyResolvedRows(client, serviceDate, cooldownSinceIso),
-      fetchRecentlyResolvedRows(client, yesterdayDate, cooldownSinceIso),
-      fetchArrivals(config.tflStopPointId),
-    ]);
+  const [
+    todayRows,
+    yesterdayRows,
+    recentlyResolvedToday,
+    recentlyResolvedYesterday,
+    terminusPredictions,
+    barkingPredictions,
+  ] = await Promise.all([
+    fetchPendingRows(client, serviceDate),
+    fetchPendingRows(client, yesterdayDate),
+    fetchRecentlyResolvedRows(client, serviceDate, cooldownSinceIso),
+    fetchRecentlyResolvedRows(client, yesterdayDate, cooldownSinceIso),
+    fetchArrivals(config.tflStopPointId),
+    fetchBarkingOutboundArrivals(config.barkingStopPointId, config.tflLineId),
+  ]);
   // Resolved rows are included only so their vehicle_id remains visible to
-  // runPollCycle's reuse-dedup check (see VEHICLE_REUSE_COOLDOWN_MS) —
-  // runPollCycle never mutates a row that isn't 'pending', so merging them
-  // in here is safe.
+  // runPollCycle's reuse-dedup and Barking-Riverside-presence checks (see
+  // VEHICLE_REUSE_COOLDOWN_MS) — runPollCycle never mutates a row that
+  // isn't 'pending', so merging them in here is safe.
   const pendingRows = [...todayRows, ...yesterdayRows, ...recentlyResolvedToday, ...recentlyResolvedYesterday];
 
-  const changed = runPollCycle(pendingRows, predictions, now);
+  const changed = runPollCycle(pendingRows, terminusPredictions, barkingPredictions, now);
 
   if (changed.length === 0) return;
 
