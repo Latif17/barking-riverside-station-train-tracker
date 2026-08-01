@@ -104,7 +104,10 @@ async function fetchLocationWindow(
 
   if (response.status === 204) return [];
   if (!response.ok) {
-    throw new Error(`RTT location request failed with status ${response.status}`);
+    const body = await response.text().catch(() => '<unreadable body>');
+    throw new Error(
+      `RTT location request failed with status ${response.status} for ${url}: ${body}`,
+    );
   }
 
   const body = (await response.json()) as RttLocationResponse;

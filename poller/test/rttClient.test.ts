@@ -167,7 +167,11 @@ describe('fetchTodayRows', () => {
   });
 
   it('throws a descriptive error on a non-ok response', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({ ok: false, status: 503 });
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      text: async () => 'Service Unavailable',
+    });
 
     await expect(
       fetchTodayRows(
