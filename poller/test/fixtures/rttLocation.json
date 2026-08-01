@@ -1,0 +1,44 @@
+{
+  "services": [
+    {
+      "scheduleMetadata": { "uniqueIdentity": "gb-nr:L01500:2026-07-31" },
+      "temporalData": {
+        "arrival": {
+          "scheduleAdvertised": "2026-07-31T07:04:00Z",
+          "isCancelled": true,
+          "cancellationReasonCode": "TB"
+        }
+      }
+    },
+    {
+      "scheduleMetadata": { "uniqueIdentity": "gb-nr:L01525:2026-07-31" },
+      "temporalData": {
+        "departure": {
+          "scheduleAdvertised": "2026-07-31T07:18:00Z",
+          "realtimeActual": "2026-07-31T07:23:12Z",
+          "realtimeAdvertisedLateness": 5,
+          "isCancelled": false
+        }
+      }
+    },
+    {
+      "scheduleMetadata": { "uniqueIdentity": "gb-nr:L01530:2026-07-31" },
+      "temporalData": {
+        "arrival": {
+          "scheduleAdvertised": "2026-07-31T07:34:00Z",
+          "realtimeActual": "2026-07-31T07:35:00Z",
+          "realtimeAdvertisedLateness": 1,
+          "isCancelled": false
+        }
+      }
+    },
+    {
+      "scheduleMetadata": { "uniqueIdentity": "gb-nr:L01545:2026-07-31" },
+      "temporalData": {
+        "departure": {
+          "scheduleAdvertised": "2026-07-31T09:03:00Z"
+        }
+      }
+    }
+  ]
+}
