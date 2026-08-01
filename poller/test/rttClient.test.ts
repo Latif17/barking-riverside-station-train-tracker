@@ -1,6 +1,6 @@
 // poller/test/rttClient.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import { mapRttServiceToRow, fetchTodayRows } from '../src/rttClient.js';
+import { mapRttServiceToRows, fetchTodayRows } from '../src/rttClient.js';
 import { londonTimeToUtcIso } from '../src/dateHelpers.js';
 import { computePeakPeriod } from '../src/peakPeriod.js';
 import { createTokenProvider } from '../src/rttAuth.js';
@@ -18,22 +18,24 @@ function makeTokenProvider() {
   );
 }
 
-describe('mapRttServiceToRow', () => {
+describe('mapRttServiceToRows', () => {
   it('maps a cancelled arrival', () => {
-    const row = mapRttServiceToRow(cancelledArrival);
-    expect(row).toEqual({
+    const rows = mapRttServiceToRows(cancelledArrival);
+    expect(rows).toEqual([{
       service_date: '2026-07-31',
       direction: 'arriving',
       scheduled_time: '2026-07-31T07:04:00.000Z',
       peak_period: computePeakPeriod(new Date('2026-07-31T07:04:00.000Z')),
       status: 'cancelled',
+      observed_time: null,
+      delay_minutes: 0,
       rtt_uid: 'gb-nr:L01500:2026-07-31',
-    });
+    }]);
   });
 
   it('maps a delayed departure using realtimeAdvertisedLateness directly', () => {
-    const row = mapRttServiceToRow(delayedDeparture);
-    expect(row).toEqual({
+    const rows = mapRttServiceToRows(delayedDeparture);
+    expect(rows).toEqual([{
       service_date: '2026-07-31',
       direction: 'departing',
       scheduled_time: '2026-07-31T07:18:00.000Z',
@@ -42,50 +44,61 @@ describe('mapRttServiceToRow', () => {
       observed_time: '2026-07-31T07:23:12.000Z',
       delay_minutes: 5,
       rtt_uid: 'gb-nr:L01525:2026-07-31',
-    });
+    }]);
   });
 
-  it('maps an on-time arrival (lateness at or below the 3-minute threshold)', () => {
-    const row = mapRttServiceToRow(onTimeArrival);
-    expect(row?.status).toBe('on_time');
-    expect(row?.delay_minutes).toBe(1);
+  it('maps a 1-minute delay as delayed due to 0-minute threshold', () => {
+    // onTimeArrival has realtimeAdvertisedLateness = 1 in the fixture
+    const rows = mapRttServiceToRows(onTimeArrival);
+    expect(rows[0]?.status).toBe('delayed');
+    expect(rows[0]?.delay_minutes).toBe(1);
   });
 
   it('maps a not-yet-run service as pending', () => {
-    const row = mapRttServiceToRow(pendingDeparture);
-    expect(row).toEqual({
+    const rows = mapRttServiceToRows(pendingDeparture);
+    expect(rows).toEqual([{
       service_date: '2026-07-31',
       direction: 'departing',
       scheduled_time: '2026-07-31T09:03:00.000Z',
       peak_period: computePeakPeriod(new Date('2026-07-31T09:03:00.000Z')),
       status: 'pending',
+      observed_time: null,
+      delay_minutes: 0,
       rtt_uid: 'gb-nr:L01545:2026-07-31',
-    });
+    }]);
   });
 
-  it('returns null for a service with neither arrival nor departure scheduled', () => {
-    expect(mapRttServiceToRow({ temporalData: {} })).toBeNull();
+  it('returns empty array for a service with neither arrival nor departure scheduled', () => {
+    expect(mapRttServiceToRows({ temporalData: {} })).toEqual([]);
+  });
+
+  it('maps both arrival and departure when both are scheduled', () => {
+    const dualService = {
+      scheduleMetadata: { uniqueIdentity: 'gb-nr:L99999:2026-07-31' },
+      temporalData: {
+        arrival: { scheduleAdvertised: '2026-07-31T08:00:00.000Z', realtimeActual: '2026-07-31T08:00:00.000Z' },
+        departure: { scheduleAdvertised: '2026-07-31T08:02:00.000Z', realtimeActual: '2026-07-31T08:02:00.000Z' },
+      },
+    };
+    const rows = mapRttServiceToRows(dualService);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].direction).toBe('arriving');
+    expect(rows[1].direction).toBe('departing');
   });
 });
 
 describe('fetchTodayRows', () => {
-  it('queries the morning and evening windows and maps every returned service', async () => {
-    const morningFrom = londonTimeToUtcIso('2026-07-31', '00:00');
-    const eveningFrom = londonTimeToUtcIso('2026-07-31', '12:00');
+  it('queries the location window and maps every returned service', async () => {
+    const timeFrom = londonTimeToUtcIso('2026-07-31', '00:00');
 
     const mockFetch = vi.fn().mockImplementation(async (url: string) => {
-      if (url.includes(`timeFrom=${morningFrom}`)) {
+      if (url.includes(`timeFrom=${timeFrom}`)) {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ services: [cancelledArrival, delayedDeparture] }),
-        };
-      }
-      if (url.includes(`timeFrom=${eveningFrom}`)) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({ services: [onTimeArrival, pendingDeparture] }),
+          json: async () => ({
+            services: [cancelledArrival, delayedDeparture, onTimeArrival, pendingDeparture],
+          }),
         };
       }
       throw new Error(`unexpected URL: ${url}`);
@@ -99,21 +112,12 @@ describe('fetchTodayRows', () => {
     );
 
     expect(rows).toHaveLength(4);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch.mock.calls[0][0]).toContain('code=BGV');
     expect(mockFetch.mock.calls[0][1]).toEqual({ headers: { Authorization: 'Bearer access-abc' } });
   });
 
   it('retries once after a 401 by forcing a token refresh', async () => {
-    // fetchTodayRows fires both time windows concurrently (Promise.all), so
-    // both windows' initial getAccessToken() calls race on a cold cache —
-    // each may independently request its own token. Use an unbounded
-    // incrementing-token mock (not a fixed two-response queue) so the race
-    // can't starve either window of a token, and assert on a *behavioral*
-    // property (the retry's Authorization header differs from that same
-    // URL's first, rejected attempt) rather than a specific token string,
-    // since which token each concurrent window receives first is
-    // non-deterministic.
     let tokenCounter = 0;
     const tokenFetch = vi.fn().mockImplementation(async () => ({
       ok: true,
@@ -135,8 +139,6 @@ describe('fetchTodayRows', () => {
         firstAttemptAuth.set(url, auth);
         return { ok: false, status: 401 };
       }
-      // The retry must use a token forced fresh via forceRefresh(), not the
-      // token that was just rejected for this same URL.
       expect(auth).not.toBe(firstAttemptAuth.get(url));
       return { ok: true, status: 200, json: async () => ({ services: [] }) };
     });
@@ -149,8 +151,7 @@ describe('fetchTodayRows', () => {
     );
 
     expect(rows).toEqual([]);
-    // 2 windows, each first tried (401) then retried once — 4 calls total.
-    expect(mockFetch).toHaveBeenCalledTimes(4);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it('treats a 204 response as no services', async () => {
@@ -183,3 +184,4 @@ describe('fetchTodayRows', () => {
     ).rejects.toThrow(/503/);
   });
 });
+

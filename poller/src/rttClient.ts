@@ -4,8 +4,6 @@ import { londonTimeToUtcIso } from './dateHelpers.js';
 import type { Direction, ScheduledServiceRow } from './types.js';
 import type { TokenProvider } from './rttAuth.js';
 
-const DELAY_THRESHOLD_MINUTES = 3;
-
 export interface RttIndividualTemporalData {
   scheduleAdvertised?: string;
   realtimeActual?: string;
@@ -33,49 +31,58 @@ export interface RttClientConfig {
   rttStationCode: string;
 }
 
-function directionAndBlock(
+function directionsAndBlocks(
   service: RttService,
-): { direction: Direction; block: RttIndividualTemporalData } | null {
+): Array<{ direction: Direction; block: RttIndividualTemporalData }> {
+  const results: Array<{ direction: Direction; block: RttIndividualTemporalData }> = [];
+
   const arrival = service.temporalData?.arrival;
-  if (arrival?.scheduleAdvertised) return { direction: 'arriving', block: arrival };
-
-  const departure = service.temporalData?.departure;
-  if (departure?.scheduleAdvertised) return { direction: 'departing', block: departure };
-
-  return null;
-}
-
-export function mapRttServiceToRow(service: RttService): ScheduledServiceRow | null {
-  const resolved = directionAndBlock(service);
-  if (!resolved) return null;
-  const { direction, block } = resolved;
-
-  const scheduled_time = new Date(block.scheduleAdvertised!).toISOString();
-  const service_date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(
-    new Date(scheduled_time),
-  );
-  const peak_period = computePeakPeriod(new Date(scheduled_time));
-  const rtt_uid = service.scheduleMetadata?.uniqueIdentity ?? null;
-
-  if (block.isCancelled) {
-    return { service_date, direction, scheduled_time, peak_period, status: 'cancelled', rtt_uid };
+  if (arrival?.scheduleAdvertised) {
+    results.push({ direction: 'arriving', block: arrival });
   }
 
-  if (block.realtimeActual) {
+  const departure = service.temporalData?.departure;
+  if (departure?.scheduleAdvertised) {
+    results.push({ direction: 'departing', block: departure });
+  }
+
+  return results;
+}
+
+export function mapRttServiceToRows(service: RttService): ScheduledServiceRow[] {
+  const blocks = directionsAndBlocks(service);
+  if (blocks.length === 0) return [];
+
+  return blocks.map(({ direction, block }) => {
+    const scheduled_time = new Date(block.scheduleAdvertised!).toISOString();
+    const service_date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(
+      new Date(scheduled_time),
+    );
+    const peak_period = computePeakPeriod(new Date(scheduled_time));
+    const rtt_uid = service.scheduleMetadata?.uniqueIdentity ?? null;
     const delay_minutes = block.realtimeAdvertisedLateness ?? 0;
+
+    let status: 'pending' | 'on_time' | 'delayed' | 'cancelled' = 'pending';
+
+    if (block.isCancelled) {
+      status = 'cancelled';
+    } else if (delay_minutes > 0) {
+      status = 'delayed';
+    } else if (block.realtimeActual) {
+      status = 'on_time';
+    }
+
     return {
       service_date,
       direction,
       scheduled_time,
       peak_period,
-      status: delay_minutes > DELAY_THRESHOLD_MINUTES ? 'delayed' : 'on_time',
-      observed_time: new Date(block.realtimeActual).toISOString(),
+      status,
+      observed_time: block.realtimeActual ? new Date(block.realtimeActual).toISOString() : null,
       delay_minutes,
       rtt_uid,
     };
-  }
-
-  return { service_date, direction, scheduled_time, peak_period, status: 'pending', rtt_uid };
+  });
 }
 
 async function fetchLocationWindow(
@@ -120,12 +127,14 @@ export async function fetchTodayRows(
   serviceDate: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<ScheduledServiceRow[]> {
-  const [morning, evening] = await Promise.all([
-    fetchLocationWindow(config, tokenProvider, serviceDate, '00:00', '12:00', fetchFn),
-    fetchLocationWindow(config, tokenProvider, serviceDate, '12:00', '23:59', fetchFn),
-  ]);
+  const services = await fetchLocationWindow(
+    config,
+    tokenProvider,
+    serviceDate,
+    '00:00',
+    '23:59',
+    fetchFn,
+  );
 
-  return [...morning, ...evening]
-    .map(mapRttServiceToRow)
-    .filter((row): row is ScheduledServiceRow => row !== null);
+  return services.flatMap(mapRttServiceToRows);
 }

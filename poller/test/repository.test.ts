@@ -46,7 +46,11 @@ describe('upsertScheduledServices', () => {
         service_date: '2026-07-31',
         direction: 'arriving',
         scheduled_time: '2026-07-31T07:00:00.000Z',
+        peak_period: undefined,
         status: 'on_time',
+        observed_time: null,
+        delay_minutes: null,
+        rtt_uid: null,
       },
     ] as any;
     await upsertScheduledServices(client, rows);
