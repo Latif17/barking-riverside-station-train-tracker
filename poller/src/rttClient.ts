@@ -60,7 +60,7 @@ export function mapRttServiceToRows(service: RttService): ScheduledServiceRow[] 
     );
     const peak_period = computePeakPeriod(new Date(scheduled_time));
     const rtt_uid = service.scheduleMetadata?.uniqueIdentity ?? null;
-    const delay_minutes = block.realtimeAdvertisedLateness ?? 0;
+    const delay_minutes = Math.max(0, block.realtimeAdvertisedLateness ?? 0);
 
     let status: 'pending' | 'on_time' | 'delayed' | 'cancelled' = 'pending';
 
@@ -127,14 +127,10 @@ export async function fetchTodayRows(
   serviceDate: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<ScheduledServiceRow[]> {
-  const services = await fetchLocationWindow(
-    config,
-    tokenProvider,
-    serviceDate,
-    '00:00',
-    '23:59',
-    fetchFn,
-  );
+  const [morning, evening] = await Promise.all([
+    fetchLocationWindow(config, tokenProvider, serviceDate, '00:00', '12:00', fetchFn),
+    fetchLocationWindow(config, tokenProvider, serviceDate, '12:00', '23:59', fetchFn),
+  ]);
 
-  return services.flatMap(mapRttServiceToRows);
+  return [...morning, ...evening].flatMap(mapRttServiceToRows);
 }
