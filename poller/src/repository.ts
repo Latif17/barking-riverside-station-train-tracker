@@ -21,8 +21,14 @@ export async function upsertScheduledServices(
   rows: ScheduledServiceRow[],
 ): Promise<void> {
   if (rows.length === 0) return;
+
+  const sanitizedRows = rows.map((row) => {
+    const { id, ...rest } = row;
+    return rest;
+  });
+
   const { error } = await client
     .from('scheduled_services')
-    .upsert(rows, { onConflict: 'service_date,direction,scheduled_time' });
+    .upsert(sanitizedRows, { onConflict: 'service_date,direction,scheduled_time' });
   if (error) throw new Error(`upsertScheduledServices failed: ${error.message}`);
 }
