@@ -724,30 +724,39 @@ describe('fetchTodayRows', () => {
   });
 
   it('retries once after a 401 by forcing a token refresh', async () => {
-    const tokenFetch = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ token: 'access-1', validUntil: '2026-07-31T23:59:59Z' }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ token: 'access-2', validUntil: '2026-07-31T23:59:59Z' }),
-      });
+    // fetchTodayRows fires both time windows concurrently (Promise.all), so
+    // both windows' initial getAccessToken() calls race on a cold cache —
+    // each may independently request its own token. Use an unbounded
+    // incrementing-token mock (not a fixed two-response queue) so the race
+    // can't starve either window of a token, and assert on a *behavioral*
+    // property (the retry's Authorization header differs from that same
+    // URL's first, rejected attempt) rather than a specific token string,
+    // since which token each concurrent window receives first is
+    // non-deterministic.
+    let tokenCounter = 0;
+    const tokenFetch = vi.fn().mockImplementation(async () => ({
+      ok: true,
+      json: async () => {
+        tokenCounter += 1;
+        return { token: `access-${tokenCounter}`, validUntil: '2026-07-31T23:59:59Z' };
+      },
+    }));
     const tokenProvider = createTokenProvider(
       { baseUrl: 'https://data.rtt.io', refreshToken: 'refresh-abc' },
       tokenFetch as unknown as typeof fetch,
     );
 
-    const seenUrls = new Set<string>();
+    const firstAttemptAuth = new Map<string, string>();
     const mockFetch = vi.fn().mockImplementation(async (url: string, init: RequestInit) => {
-      const alreadyTried = seenUrls.has(url);
-      seenUrls.add(url);
+      const auth = (init.headers as Record<string, string>).Authorization;
 
-      if (!alreadyTried) {
+      if (!firstAttemptAuth.has(url)) {
+        firstAttemptAuth.set(url, auth);
         return { ok: false, status: 401 };
       }
-      expect(init.headers).toEqual({ Authorization: 'Bearer access-2' });
+      // The retry must use a token forced fresh via forceRefresh(), not the
+      // token that was just rejected for this same URL.
+      expect(auth).not.toBe(firstAttemptAuth.get(url));
       return { ok: true, status: 200, json: async () => ({ services: [] }) };
     });
 
@@ -759,8 +768,7 @@ describe('fetchTodayRows', () => {
     );
 
     expect(rows).toEqual([]);
-    // 2 windows, each first tried with the cached token (401), then retried
-    // once after forceRefresh — 4 calls total.
+    // 2 windows, each first tried (401) then retried once — 4 calls total.
     expect(mockFetch).toHaveBeenCalledTimes(4);
   });
 
