@@ -8,6 +8,7 @@ describe('loadConfig', () => {
   beforeEach(() => {
     process.env.SUPABASE_URL = 'https://example.supabase.co';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key';
+    process.env.RTT_REFRESH_TOKEN = 'test-refresh-token';
     delete process.env.POLL_INTERVAL_MS;
   });
 
@@ -19,9 +20,9 @@ describe('loadConfig', () => {
     const config = loadConfig();
     expect(config.supabaseUrl).toBe('https://example.supabase.co');
     expect(config.supabaseServiceRoleKey).toBe('test-key');
-    expect(config.tflStopPointId).toBe('910GBARKRIV');
-    expect(config.barkingStopPointId).toBe('910GBARKING');
-    expect(config.tflLineId).toBe('suffragette');
+    expect(config.rttRefreshToken).toBe('test-refresh-token');
+    expect(config.rttBaseUrl).toBe('https://data.rtt.io');
+    expect(config.rttStationCode).toBe('BGV');
     expect(config.pollIntervalMs).toBe(45000);
   });
 
@@ -38,5 +39,10 @@ describe('loadConfig', () => {
   it('throws if SUPABASE_SERVICE_ROLE_KEY is missing', () => {
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     expect(() => loadConfig()).toThrow(/SUPABASE_SERVICE_ROLE_KEY/);
+  });
+
+  it('throws if RTT_REFRESH_TOKEN is missing', () => {
+    delete process.env.RTT_REFRESH_TOKEN;
+    expect(() => loadConfig()).toThrow(/RTT_REFRESH_TOKEN/);
   });
 });

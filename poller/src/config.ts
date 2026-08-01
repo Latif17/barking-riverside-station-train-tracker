@@ -1,9 +1,9 @@
 // poller/src/config.ts
 
 export interface Config {
-  tflStopPointId: string;
-  barkingStopPointId: string;
-  tflLineId: string;
+  rttBaseUrl: string;
+  rttStationCode: string;
+  rttRefreshToken: string;
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
   pollIntervalMs: number;
@@ -19,9 +19,9 @@ function requireEnv(name: string): string {
 
 export function loadConfig(): Config {
   return {
-    tflStopPointId: '910GBARKRIV',
-    barkingStopPointId: '910GBARKING',
-    tflLineId: 'suffragette',
+    rttBaseUrl: 'https://data.rtt.io',
+    rttStationCode: 'BGV',
+    rttRefreshToken: requireEnv('RTT_REFRESH_TOKEN'),
     supabaseUrl: requireEnv('SUPABASE_URL'),
     supabaseServiceRoleKey: requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
     pollIntervalMs: process.env.POLL_INTERVAL_MS
