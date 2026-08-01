@@ -22,7 +22,7 @@ describe('loadConfig', () => {
     expect(config.supabaseServiceRoleKey).toBe('test-key');
     expect(config.rttRefreshToken).toBe('test-refresh-token');
     expect(config.rttBaseUrl).toBe('https://data.rtt.io');
-    expect(config.rttStationCode).toBe('BGV');
+    expect(config.rttStationCode).toBe('gb-nr:BGV');
     expect(config.pollIntervalMs).toBe(45000);
   });
 

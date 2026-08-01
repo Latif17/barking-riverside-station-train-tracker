@@ -20,7 +20,10 @@ function requireEnv(name: string): string {
 export function loadConfig(): Config {
   return {
     rttBaseUrl: 'https://data.rtt.io',
-    rttStationCode: 'BGV',
+    // The generic /rtt/location endpoint requires a namespaced code (per
+    // its own OpenAPI example, "gb-nr:CLPHMJN") — a bare CRS code like
+    // "BGV" is rejected with {"error":"unable to interpret code: BGV"}.
+    rttStationCode: 'gb-nr:BGV',
     rttRefreshToken: requireEnv('RTT_REFRESH_TOKEN'),
     supabaseUrl: requireEnv('SUPABASE_URL'),
     supabaseServiceRoleKey: requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
