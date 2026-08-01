@@ -5,6 +5,7 @@ export interface RttAuthConfig {
 
 export interface TokenProvider {
   getAccessToken(now?: Date): Promise<string>;
+  forceRefresh(): Promise<string>;
 }
 
 interface CachedToken {
