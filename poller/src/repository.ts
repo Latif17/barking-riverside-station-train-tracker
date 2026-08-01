@@ -22,10 +22,16 @@ export async function upsertScheduledServices(
 ): Promise<void> {
   if (rows.length === 0) return;
 
-  const sanitizedRows = rows.map((row) => {
-    const { id, ...rest } = row;
-    return rest;
-  });
+  const sanitizedRows = rows.map((row) => ({
+    service_date: row.service_date,
+    direction: row.direction,
+    scheduled_time: row.scheduled_time,
+    peak_period: row.peak_period,
+    status: row.status,
+    observed_time: row.observed_time ?? null,
+    delay_minutes: row.delay_minutes ?? null,
+    rtt_uid: row.rtt_uid ?? null,
+  }));
 
   const { error } = await client
     .from('scheduled_services')
