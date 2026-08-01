@@ -16,43 +16,13 @@ export async function fetchPendingRows(
   return (data ?? []) as ScheduledServiceRow[];
 }
 
-export async function fetchRecentlyResolvedRows(
-  client: SupabaseClient,
-  serviceDate: string,
-  sinceIso: string,
-): Promise<ScheduledServiceRow[]> {
-  const { data, error } = await client
-    .from('scheduled_services')
-    .select('*')
-    .eq('service_date', serviceDate)
-    .neq('status', 'pending')
-    .gte('scheduled_time', sinceIso);
-
-  if (error) throw new Error(`fetchRecentlyResolvedRows failed: ${error.message}`);
-  return (data ?? []) as ScheduledServiceRow[];
-}
-
-export async function upsertRows(client: SupabaseClient, rows: ScheduledServiceRow[]): Promise<void> {
-  if (rows.length === 0) return;
-  const { error } = await client.from('scheduled_services').upsert(rows, { onConflict: 'id' });
-  if (error) throw new Error(`upsertRows failed: ${error.message}`);
-}
-
-export async function insertSeedRows(
+export async function upsertScheduledServices(
   client: SupabaseClient,
   rows: ScheduledServiceRow[],
 ): Promise<void> {
   if (rows.length === 0) return;
-  const { error } = await client.from('scheduled_services').insert(rows);
-  if (error) throw new Error(`insertSeedRows failed: ${error.message}`);
-}
-
-export async function rowsExistForDate(client: SupabaseClient, serviceDate: string): Promise<boolean> {
-  const { data, error } = await client
+  const { error } = await client
     .from('scheduled_services')
-    .select('id', { count: 'exact', head: false })
-    .eq('service_date', serviceDate);
-
-  if (error) throw new Error(`rowsExistForDate failed: ${error.message}`);
-  return (data ?? []).length > 0;
+    .upsert(rows, { onConflict: 'service_date,direction,scheduled_time' });
+  if (error) throw new Error(`upsertScheduledServices failed: ${error.message}`);
 }
