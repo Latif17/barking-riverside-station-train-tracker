@@ -1,6 +1,6 @@
 // poller/test/dateHelpers.test.ts
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { todayLondon, yesterdayLondon, londonTimeToUtcIso } from '../src/dateHelpers.js';
+import { todayLondon, londonTimeToUtcIso } from '../src/dateHelpers.js';
 
 describe('todayLondon', () => {
   afterEach(() => {
@@ -17,36 +17,6 @@ describe('todayLondon', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-03-29T23:30:00Z')); // 00:30 BST on 03-30
     expect(todayLondon()).toBe('2026-03-30');
-  });
-});
-
-describe('yesterdayLondon', () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('returns the previous day within a normal month', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-07-15T12:00:00Z'));
-    expect(yesterdayLondon()).toBe('2026-07-14');
-  });
-
-  it('rolls back across a month boundary', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-03-01T10:00:00Z'));
-    expect(yesterdayLondon()).toBe('2026-02-28');
-  });
-
-  it('rolls back across a year boundary', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-01-01T10:00:00Z'));
-    expect(yesterdayLondon()).toBe('2025-12-31');
-  });
-
-  it('handles the London midnight rollover just after BST transition (late March)', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-03-29T23:30:00Z'));
-    expect(yesterdayLondon()).toBe('2026-03-29');
   });
 });
 

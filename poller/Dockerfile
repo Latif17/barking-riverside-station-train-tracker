@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY tsconfig.json schedule.json ./
+COPY tsconfig.json ./
 COPY src ./src
 
 CMD ["npx", "tsx", "src/index.ts"]

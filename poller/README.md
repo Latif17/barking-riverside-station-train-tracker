@@ -1,21 +1,25 @@
 # Barking Riverside Poller
 
-Polls TfL's live Arrivals feed for Barking Riverside station, matches it
-against `schedule.json`, and records on-time/delayed/cancelled outcomes to
-Supabase.
+Polls the Realtime Trains (RTT) next-generation API for services calling at
+Barking Riverside station (CRS code `BGV`), and records on-time/delayed/
+cancelled outcomes to Supabase.
 
 ## Setup
 
-1. Apply the database migration to your Supabase project: open the SQL
-   Editor in the Supabase dashboard, paste the contents of
-   `supabase/migrations/0001_init.sql` (repo root, one level up from this
-   `poller/` directory), and run it — or apply it from the repo root with the
+1. Apply the database migrations to your Supabase project: open the SQL
+   Editor in the Supabase dashboard and run, in order, `0001_init.sql`,
+   `0002_set_updated_at_trigger.sql`, and `0003_rtt_migration.sql` (repo root,
+   `supabase/migrations/`) — or apply them from the repo root with the
    Supabase CLI, e.g. `supabase db push`. The poller will fail on its first
-   cycle without the `scheduled_services` table this creates.
-2. Copy `.env.example` to `.env` and fill in `SUPABASE_URL` and
-   `SUPABASE_SERVICE_ROLE_KEY` (from your Supabase project's API settings).
-3. Make sure `schedule.json` has real timetable data (see the file's
-   `effective_from` field) — see "Updating the schedule" below.
+   cycle without the `scheduled_services` table and its RTT-shaped columns.
+2. Copy `.env.example` to `.env` and fill in `SUPABASE_URL`,
+   `SUPABASE_SERVICE_ROLE_KEY` (from your Supabase project's API settings),
+   and `RTT_REFRESH_TOKEN` (from your RTT next-generation API account —
+   sign up at https://api-portal.rtt.io).
+
+There's no schedule file to maintain: RTT's `/rtt/location` response for
+Barking Riverside is itself the schedule, sourced from the real Network Rail
+timetable, so genuine timetable changes are picked up automatically.
 
 ## Running locally
 
@@ -29,19 +33,6 @@ Set `DRY_RUN=true` to log intended changes without writing to Supabase.
     docker compose up -d --build
 
 Check logs with `docker compose logs -f`.
-
-## Updating the schedule
-
-National Rail timetables change a few times a year (typically May and
-December). When Barking Riverside's published timetable changes:
-
-1. Look up the new timetable (nationalrail.co.uk journey planner for station
-   code `BGV`, or the TfL Suffragette line page).
-2. Update `schedule.json`'s `weekday`/`saturday`/`sunday` arrays and bump
-   `effective_from` to the change date.
-3. Redeploy: `docker compose up -d --build`.
-
-No code changes or database migrations are needed for a schedule update.
 
 ## Running tests
 
