@@ -4,7 +4,7 @@ import { createSupabaseClient } from './supabaseClient.js';
 import { fetchPendingRows, upsertScheduledServices } from './repository.js';
 import { createTokenProvider } from './rttAuth.js';
 import { fetchTodayRows } from './rttClient.js';
-import { applyForceResolveFallback } from './forceResolve.js';
+import { applyForceResolveFallback, dedupeRowsByNaturalKey } from './forceResolve.js';
 import { todayLondon } from './dateHelpers.js';
 
 const DRY_RUN = process.env.DRY_RUN === 'true';
@@ -23,7 +23,10 @@ async function pollOnce(
   ]);
 
   const forceResolvedRows = applyForceResolveFallback(pendingRows, freshRows, now);
-  const rowsToUpsert = [...freshRows, ...forceResolvedRows];
+  // Fresh RTT data always wins over a force-resolved fallback row if they
+  // ever collide on the same natural key: put forceResolvedRows first,
+  // freshRows last, since dedupeRowsByNaturalKey keeps the last value written.
+  const rowsToUpsert = dedupeRowsByNaturalKey([...forceResolvedRows, ...freshRows]);
 
   if (rowsToUpsert.length === 0) return;
 
