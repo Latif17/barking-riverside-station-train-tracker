@@ -39,7 +39,7 @@ describe('upsertScheduledServices', () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 
-  it('upserts on the natural (service_date, direction, scheduled_time) key', async () => {
+  it('upserts on the natural (service_date, direction, rtt_uid) key', async () => {
     const { client, upsert } = makeFakeClient();
     const rows = [
       {
@@ -54,7 +54,7 @@ describe('upsertScheduledServices', () => {
       },
     ] as any;
     await upsertScheduledServices(client, rows);
-    expect(upsert).toHaveBeenCalledWith(rows, { onConflict: 'service_date,direction,scheduled_time' });
+    expect(upsert).toHaveBeenCalledWith(rows, { onConflict: 'service_date,direction,rtt_uid' });
   });
 
   it('throws if the upsert returns an error', async () => {

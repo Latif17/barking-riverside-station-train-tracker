@@ -52,6 +52,9 @@ function directionsAndBlocks(
 export function mapRttServiceToRows(service: RttService): ScheduledServiceRow[] {
   const blocks = directionsAndBlocks(service);
   if (blocks.length === 0) return [];
+  
+  const rtt_uid = service.scheduleMetadata?.uniqueIdentity;
+  if (!rtt_uid) return [];
 
   return blocks.map(({ direction, block }) => {
     const scheduled_time = new Date(block.scheduleAdvertised!).toISOString();
@@ -59,7 +62,6 @@ export function mapRttServiceToRows(service: RttService): ScheduledServiceRow[] 
       new Date(scheduled_time),
     );
     const peak_period = computePeakPeriod(new Date(scheduled_time));
-    const rtt_uid = service.scheduleMetadata?.uniqueIdentity ?? null;
     const delay_minutes = Math.max(0, block.realtimeAdvertisedLateness ?? 0);
 
     let status: 'pending' | 'on_time' | 'delayed' | 'cancelled' = 'pending';

@@ -16,6 +16,35 @@ export async function fetchPendingRows(
   return (data ?? []) as ScheduledServiceRow[];
 }
 
+export async function fetchAllRowsForDate(
+  client: SupabaseClient,
+  serviceDate: string,
+): Promise<ScheduledServiceRow[]> {
+  const { data, error } = await client
+    .from('scheduled_services')
+    .select('*')
+    .eq('service_date', serviceDate);
+
+  if (error) throw new Error(`fetchAllRowsForDate failed: ${error.message}`);
+  return (data ?? []) as ScheduledServiceRow[];
+}
+
+export async function deleteScheduledServices(
+  client: SupabaseClient,
+  serviceDate: string,
+  rttUids: string[],
+): Promise<void> {
+  if (rttUids.length === 0) return;
+
+  const { error } = await client
+    .from('scheduled_services')
+    .delete()
+    .eq('service_date', serviceDate)
+    .in('rtt_uid', rttUids);
+
+  if (error) throw new Error(`deleteScheduledServices failed: ${error.message}`);
+}
+
 export async function upsertScheduledServices(
   client: SupabaseClient,
   rows: ScheduledServiceRow[],
@@ -30,11 +59,11 @@ export async function upsertScheduledServices(
     status: row.status,
     observed_time: row.observed_time ?? null,
     delay_minutes: row.delay_minutes ?? null,
-    rtt_uid: row.rtt_uid ?? null,
+    rtt_uid: row.rtt_uid,
   }));
 
   const { error } = await client
     .from('scheduled_services')
-    .upsert(sanitizedRows, { onConflict: 'service_date,direction,scheduled_time' });
+    .upsert(sanitizedRows, { onConflict: 'service_date,direction,rtt_uid' });
   if (error) throw new Error(`upsertScheduledServices failed: ${error.message}`);
 }

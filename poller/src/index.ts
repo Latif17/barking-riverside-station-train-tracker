@@ -1,10 +1,10 @@
 // poller/src/index.ts
 import { loadConfig } from './config.js';
 import { createSupabaseClient } from './supabaseClient.js';
-import { fetchPendingRows, upsertScheduledServices } from './repository.js';
+import { fetchAllRowsForDate, fetchPendingRows, upsertScheduledServices, deleteScheduledServices } from './repository.js';
 import { createTokenProvider } from './rttAuth.js';
 import { fetchTodayRows } from './rttClient.js';
-import { applyForceResolveFallback, dedupeRowsByNaturalKey } from './forceResolve.js';
+import { applyForceResolveFallback, dedupeRowsByNaturalKey, dedupeByScheduledTime } from './forceResolve.js';
 import { todayLondon } from './dateHelpers.js';
 
 const DRY_RUN = process.env.DRY_RUN === 'true';
@@ -17,25 +17,31 @@ async function pollOnce(
   const serviceDate = todayLondon();
   const now = new Date();
 
-  const [freshRows, pendingRows] = await Promise.all([
+  const [freshRows, dbRows] = await Promise.all([
     fetchTodayRows(config, tokenProvider, serviceDate),
-    fetchPendingRows(client, serviceDate),
+    fetchAllRowsForDate(client, serviceDate),
   ]);
 
+  const pendingRows = dbRows.filter((r) => r.status === 'pending');
   const forceResolvedRows = applyForceResolveFallback(pendingRows, freshRows, now);
-  // Fresh RTT data always wins over a force-resolved fallback row if they
-  // ever collide on the same natural key: put forceResolvedRows first,
-  // freshRows last, since dedupeRowsByNaturalKey keeps the last value written.
-  const rowsToUpsert = dedupeRowsByNaturalKey([...forceResolvedRows, ...freshRows]);
 
-  if (rowsToUpsert.length === 0) return;
+  const merged = dedupeRowsByNaturalKey([...dbRows, ...forceResolvedRows, ...freshRows]);
+
+  const { keep: rowsToUpsert, drop: rowsToDelete } = dedupeByScheduledTime(merged);
+
+  if (rowsToUpsert.length === 0 && rowsToDelete.length === 0) return;
+
+  const uidsToDelete = rowsToDelete.map((r) => r.rtt_uid);
 
   if (DRY_RUN) {
     console.log(`[dry-run] would upsert ${rowsToUpsert.length} rows:`, rowsToUpsert);
+    console.log(`[dry-run] would delete ${uidsToDelete.length} rows:`, uidsToDelete);
     return;
   }
+
+  await deleteScheduledServices(client, serviceDate, uidsToDelete);
   await upsertScheduledServices(client, rowsToUpsert);
-  console.log(`Upserted ${rowsToUpsert.length} rows`);
+  console.log(`Upserted ${rowsToUpsert.length} rows, Deleted ${uidsToDelete.length} obsolete rows`);
 }
 
 async function main() {
