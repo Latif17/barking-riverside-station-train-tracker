@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computePeakPeriod } from '../src/peakPeriod.js';
+import { computePeakPeriod, getPollingState } from '../src/peakPeriod.js';
 
 describe('computePeakPeriod', () => {
   it('is am_peak at 07:00 London time on a winter weekday', () => {
@@ -36,18 +36,20 @@ describe('computePeakPeriod', () => {
     expect(computePeakPeriod(new Date('2026-07-29T05:30:00Z'))).toBe('am_peak');
   });
 
-  it('is sleep at 02:00 London time', () => {
+  it('is sleep at 02:00 London time for polling, but off_peak for train', () => {
     // 02:00 London (GMT)
-    expect(computePeakPeriod(new Date('2026-01-05T02:00:00Z'))).toBe('sleep');
+    const d = new Date('2026-01-05T02:00:00Z');
+    expect(getPollingState(d)).toBe('sleep');
+    expect(computePeakPeriod(d)).toBe('off_peak');
   });
 
   it('is sleep at 04:59 London time', () => {
     // 04:59 London (GMT)
-    expect(computePeakPeriod(new Date('2026-01-05T04:59:00Z'))).toBe('sleep');
+    expect(getPollingState(new Date('2026-01-05T04:59:00Z'))).toBe('sleep');
   });
 
   it('is sleep at exact start boundary 01:00 London time', () => {
-    expect(computePeakPeriod(new Date('2026-01-05T01:00:00Z'))).toBe('sleep');
+    expect(getPollingState(new Date('2026-01-05T01:00:00Z'))).toBe('sleep');
   });
 
   it('is off_peak at exact end boundary 05:00 London time', () => {

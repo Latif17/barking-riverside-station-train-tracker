@@ -1,5 +1,5 @@
 
-export type PeakPeriod = 'am_peak' | 'pm_peak' | 'off_peak' | 'sleep';
+export type PeakPeriod = 'am_peak' | 'pm_peak' | 'off_peak';
 
 const LONDON_TZ = 'Europe/London';
 const SLEEP_START_MIN = 1 * 60;    // 01:00
@@ -24,10 +24,6 @@ export function computePeakPeriod(date: Date): PeakPeriod {
   const minute = Number(parts.find((p) => p.type === 'minute')!.value);
   const minutesSinceMidnight = hour * 60 + minute;
 
-  if (minutesSinceMidnight >= SLEEP_START_MIN && minutesSinceMidnight < SLEEP_END_MIN) {
-    return 'sleep';
-  }
-
   if (WEEKEND_DAYS.has(weekday)) {
     return 'off_peak';
   }
@@ -41,4 +37,23 @@ export function computePeakPeriod(date: Date): PeakPeriod {
   }
 
   return 'off_peak';
+}
+
+export function getPollingState(date: Date): PeakPeriod | 'sleep' {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: LONDON_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+
+  const hour = Number(parts.find((p) => p.type === 'hour')!.value);
+  const minute = Number(parts.find((p) => p.type === 'minute')!.value);
+  const minutesSinceMidnight = hour * 60 + minute;
+
+  if (minutesSinceMidnight >= SLEEP_START_MIN && minutesSinceMidnight < SLEEP_END_MIN) {
+    return 'sleep';
+  }
+
+  return computePeakPeriod(date);
 }

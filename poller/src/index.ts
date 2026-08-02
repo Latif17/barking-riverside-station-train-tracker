@@ -6,7 +6,7 @@ import { createTokenProvider } from './rttAuth.js';
 import { fetchTodayRows } from './rttClient.js';
 import { applyForceResolveFallback, dedupeRowsByNaturalKey, dedupeByScheduledTime } from './forceResolve.js';
 import { todayLondon } from './dateHelpers.js';
-import { computePeakPeriod } from './peakPeriod.js';
+import { computePeakPeriod, getPollingState } from './peakPeriod.js';
 
 const DRY_RUN = process.env.DRY_RUN === 'true';
 
@@ -16,7 +16,7 @@ export async function pollOnce(
   tokenProvider: ReturnType<typeof createTokenProvider>,
 ) {
   const now = new Date();
-  if (computePeakPeriod(now) === 'sleep') {
+  if (getPollingState(now) === 'sleep') {
     return; // Skip polling entirely
   }
 
@@ -50,7 +50,7 @@ export async function pollOnce(
 }
 
 export function getPollInterval(
-  period: ReturnType<typeof computePeakPeriod>,
+  period: ReturnType<typeof getPollingState>,
   config: ReturnType<typeof loadConfig>,
 ): number {
   if (period === 'am_peak' || period === 'pm_peak') {
@@ -80,7 +80,7 @@ async function main() {
       })
       .finally(() => {
         const now = new Date();
-        const period = computePeakPeriod(now);
+        const period = getPollingState(now);
         const interval = getPollInterval(period, config);
 
         const elapsed = Date.now() - startTime;
