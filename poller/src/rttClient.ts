@@ -16,6 +16,7 @@ export interface RttIndividualTemporalData {
 export interface RttService {
   scheduleMetadata?: {
     uniqueIdentity?: string;
+    inPassengerService?: boolean;
   };
   temporalData?: {
     arrival?: RttIndividualTemporalData | null;
@@ -56,6 +57,7 @@ export function mapRttServiceToRows(service: RttService): ScheduledServiceRow[] 
   
   const rtt_uid = service.scheduleMetadata?.uniqueIdentity;
   if (!rtt_uid) return [];
+  if (service.scheduleMetadata?.inPassengerService === false) return [];
 
   return blocks.map(({ direction, block }) => {
     const scheduled_time = new Date(block.scheduleAdvertised!).toISOString();
@@ -145,6 +147,7 @@ export async function fetchTodayRows(
   const expectedRows = getScheduledServicesForDate(serviceDate);
 
   // Merge live data
+  const nowMs = Date.now();
   for (const row of expectedRows) {
     const rttRow = rttMap.get(`${row.scheduled_time}|${row.direction}`);
     if (rttRow) {
@@ -153,6 +156,12 @@ export async function fetchTodayRows(
       row.observed_time = rttRow.observed_time;
       row.delay_minutes = rttRow.delay_minutes;
       row.rtt_uid = rttRow.rtt_uid;
+
+      // Force resolve ghost trains that fell off the live feed without arriving
+      const timeSinceScheduled = nowMs - new Date(row.scheduled_time).getTime();
+      if (row.status === 'pending' && timeSinceScheduled >= 30 * 60 * 1000) {
+        row.status = 'cancelled';
+      }
     } else {
       // Train completely missing from RTT: it was cancelled early
       row.status = 'cancelled';
