@@ -100,25 +100,16 @@ describe('mapRttServiceToRows', () => {
 
 describe('fetchTodayRows', () => {
   it('queries the location window and maps every returned service', async () => {
-    const timeFromMorning = londonTimeToUtcIso('2026-07-31', '00:00');
-    const timeFromEvening = londonTimeToUtcIso('2026-07-31', '12:00');
+    const timeFrom = londonTimeToUtcIso('2026-07-31', '00:00');
+    const timeTo = londonTimeToUtcIso('2026-07-31', '23:59');
 
     const mockFetch = vi.fn().mockImplementation(async (url: string) => {
-      if (url.includes(`timeFrom=${timeFromMorning}`)) {
+      if (url.includes(`timeFrom=${timeFrom}`) && url.includes(`timeTo=${timeTo}`)) {
         return {
           ok: true,
           status: 200,
           json: async () => ({
-            services: [cancelledArrival, delayedDeparture],
-          }),
-        };
-      }
-      if (url.includes(`timeFrom=${timeFromEvening}`)) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            services: [onTimeArrival, pendingDeparture],
+            services: [cancelledArrival, delayedDeparture, onTimeArrival, pendingDeparture],
           }),
         };
       }
@@ -133,11 +124,11 @@ describe('fetchTodayRows', () => {
     );
 
     expect(rows).toHaveLength(4);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
     expect(mockFetch.mock.calls[0][0]).toContain('code=BGV');
-    expect(mockFetch.mock.calls[1][0]).toContain('code=BGV');
+    expect(mockFetch.mock.calls[0][0]).toContain(`timeFrom=${timeFrom}`);
+    expect(mockFetch.mock.calls[0][0]).toContain(`timeTo=${timeTo}`);
     expect(mockFetch.mock.calls[0][1]).toEqual({ headers: { Authorization: 'Bearer access-abc' } });
-    expect(mockFetch.mock.calls[1][1]).toEqual({ headers: { Authorization: 'Bearer access-abc' } });
   });
 
   it('retries once after a 401 by forcing a token refresh', async () => {
@@ -174,7 +165,7 @@ describe('fetchTodayRows', () => {
     );
 
     expect(rows).toEqual([]);
-    expect(mockFetch).toHaveBeenCalledTimes(4);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it('treats a 204 response as no services', async () => {

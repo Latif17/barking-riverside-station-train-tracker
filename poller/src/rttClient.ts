@@ -129,10 +129,6 @@ export async function fetchTodayRows(
   serviceDate: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<ScheduledServiceRow[]> {
-  const [morning, evening] = await Promise.all([
-    fetchLocationWindow(config, tokenProvider, serviceDate, '00:00', '12:00', fetchFn),
-    fetchLocationWindow(config, tokenProvider, serviceDate, '12:00', '23:59', fetchFn),
-  ]);
-
-  return [...morning, ...evening].flatMap(mapRttServiceToRows);
+  const fullDay = await fetchLocationWindow(config, tokenProvider, serviceDate, '00:00', '23:59', fetchFn);
+  return fullDay.flatMap(mapRttServiceToRows);
 }
