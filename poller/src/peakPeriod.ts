@@ -1,7 +1,9 @@
 
-export type PeakPeriod = 'am_peak' | 'pm_peak' | 'off_peak';
+export type PeakPeriod = 'am_peak' | 'pm_peak' | 'off_peak' | 'sleep';
 
 const LONDON_TZ = 'Europe/London';
+const SLEEP_START_MIN = 1 * 60;    // 01:00
+const SLEEP_END_MIN = 5 * 60;      // 05:00
 const AM_START_MIN = 6 * 60 + 30;  // 06:30
 const AM_END_MIN = 9 * 60 + 30;    // 09:30
 const PM_START_MIN = 16 * 60;      // 16:00
@@ -21,6 +23,10 @@ export function computePeakPeriod(date: Date): PeakPeriod {
   const hour = Number(parts.find((p) => p.type === 'hour')!.value);
   const minute = Number(parts.find((p) => p.type === 'minute')!.value);
   const minutesSinceMidnight = hour * 60 + minute;
+
+  if (minutesSinceMidnight >= SLEEP_START_MIN && minutesSinceMidnight < SLEEP_END_MIN) {
+    return 'sleep';
+  }
 
   if (WEEKEND_DAYS.has(weekday)) {
     return 'off_peak';
