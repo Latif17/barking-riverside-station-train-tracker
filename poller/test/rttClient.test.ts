@@ -85,6 +85,17 @@ describe('mapRttServiceToRows', () => {
     expect(rows[0].direction).toBe('arriving');
     expect(rows[1].direction).toBe('departing');
   });
+
+  it('maps an overnight service with peak_period sleep', () => {
+    const sleepService = {
+      scheduleMetadata: { uniqueIdentity: 'gb-nr:L01599:2026-07-31' },
+      temporalData: {
+        departure: { scheduleAdvertised: '2026-07-31T02:30:00.000Z' },
+      },
+    };
+    const rows = mapRttServiceToRows(sleepService);
+    expect(rows[0]?.peak_period).toBe('sleep');
+  });
 });
 
 describe('fetchTodayRows', () => {
