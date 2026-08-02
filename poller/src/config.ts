@@ -8,6 +8,7 @@ export interface Config {
   supabaseServiceRoleKey: string;
   pollIntervalPeakMs: number;
   pollIntervalOffPeakMs: number;
+  pollIntervalSleepMs: number;
 }
 
 function requireEnv(name: string): string {
@@ -30,9 +31,12 @@ export function loadConfig(): Config {
     supabaseServiceRoleKey: requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
     pollIntervalPeakMs: process.env.POLL_INTERVAL_PEAK_MS
       ? Number(process.env.POLL_INTERVAL_PEAK_MS)
-      : 20000,
+      : 40000,
     pollIntervalOffPeakMs: process.env.POLL_INTERVAL_OFF_PEAK_MS
       ? Number(process.env.POLL_INTERVAL_OFF_PEAK_MS)
-      : 90000,
+      : 120000,
+    pollIntervalSleepMs: process.env.POLL_INTERVAL_SLEEP_MS
+      ? Number(process.env.POLL_INTERVAL_SLEEP_MS)
+      : 60000,
   };
 }

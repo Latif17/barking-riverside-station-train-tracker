@@ -10,6 +10,9 @@ describe('loadConfig', () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key';
     process.env.RTT_REFRESH_TOKEN = 'test-refresh-token';
     delete process.env.POLL_INTERVAL_MS;
+    delete process.env.POLL_INTERVAL_PEAK_MS;
+    delete process.env.POLL_INTERVAL_OFF_PEAK_MS;
+    delete process.env.POLL_INTERVAL_SLEEP_MS;
   });
 
   afterEach(() => {
@@ -23,12 +26,19 @@ describe('loadConfig', () => {
     expect(config.rttRefreshToken).toBe('test-refresh-token');
     expect(config.rttBaseUrl).toBe('https://data.rtt.io');
     expect(config.rttStationCode).toBe('gb-nr:BGV');
-    expect(config.pollIntervalMs).toBe(45000);
+    expect(config.pollIntervalPeakMs).toBe(40000);
+    expect(config.pollIntervalOffPeakMs).toBe(120000);
+    expect(config.pollIntervalSleepMs).toBe(60000);
   });
 
-  it('respects POLL_INTERVAL_MS override', () => {
-    process.env.POLL_INTERVAL_MS = '30000';
-    expect(loadConfig().pollIntervalMs).toBe(30000);
+  it('respects interval overrides', () => {
+    process.env.POLL_INTERVAL_PEAK_MS = '30000';
+    process.env.POLL_INTERVAL_OFF_PEAK_MS = '90000';
+    process.env.POLL_INTERVAL_SLEEP_MS = '45000';
+    const config = loadConfig();
+    expect(config.pollIntervalPeakMs).toBe(30000);
+    expect(config.pollIntervalOffPeakMs).toBe(90000);
+    expect(config.pollIntervalSleepMs).toBe(45000);
   });
 
   it('throws if SUPABASE_URL is missing', () => {
