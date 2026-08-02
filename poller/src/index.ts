@@ -24,19 +24,38 @@ export async function pollOnce(
 
   const serviceDate = todayLondon();
 
-  const [bgvMap, bkgMap, dbRows] = await Promise.all([
+  const [bgvRows, bkgRows, dbRows] = await Promise.all([
     fetchTodayRows(config.rttBaseUrl, tokenProvider1, serviceDate, { code: config.rttStationCode }),
     fetchTodayRows(config.rttBaseUrl2, tokenProvider2, serviceDate, { code: config.rttStationCode2, filterTo: config.rttStationCode }),
     fetchAllRowsForDate(client, serviceDate),
   ]);
+
+  const bgvMap = new Map<string, typeof bgvRows[0]>();
+  for (const r of bgvRows) {
+    bgvMap.set(`${r.scheduled_time}|${r.direction}`, r);
+  }
+
+  const bkgMap = new Map<string, typeof bkgRows[0]>();
+  for (const r of bkgRows) {
+    if (r.rtt_uid) {
+      bkgMap.set(r.rtt_uid, r);
+    }
+  }
+
+  const dbRowsMap = new Map<string, typeof dbRows[0]>();
+  for (const r of dbRows) {
+    dbRowsMap.set(`${r.scheduled_time}|${r.direction}`, r);
+  }
 
   const expectedRows = getScheduledServicesForDate(serviceDate);
   const nowMs = Date.now();
 
   const freshRows = expectedRows.map((row) => {
     const bgvRow = bgvMap.get(`${row.scheduled_time}|${row.direction}`);
-    const bkgRow = bkgMap.get(`${row.scheduled_time}|${row.direction}`);
     const timeSinceScheduled = nowMs - new Date(row.scheduled_time).getTime();
+    
+    const rttUid = bgvRow?.rtt_uid ?? dbRowsMap.get(`${row.scheduled_time}|${row.direction}`)?.rtt_uid;
+    const bkgRow = rttUid ? bkgMap.get(rttUid) : undefined;
 
     if (bgvRow) {
       row.status = bgvRow.status;

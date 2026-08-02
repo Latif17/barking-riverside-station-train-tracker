@@ -26,7 +26,7 @@ describe('pollOnce during sleep period', () => {
   };
 
   beforeEach(() => {
-    fetchTodayRowsSpy = vi.spyOn(rttClient, 'fetchTodayRows').mockResolvedValue(new Map());
+    fetchTodayRowsSpy = vi.spyOn(rttClient, 'fetchTodayRows').mockResolvedValue([]);
     fetchAllRowsForDateSpy = vi.spyOn(repository, 'fetchAllRowsForDate').mockResolvedValue([]);
     upsertScheduledServicesSpy = vi.spyOn(repository, 'upsertScheduledServices').mockResolvedValue();
     deleteScheduledServicesSpy = vi.spyOn(repository, 'deleteScheduledServices').mockResolvedValue();
@@ -63,42 +63,36 @@ describe('pollOnce during sleep period', () => {
 
     const serviceTime = '2026-01-05T08:19:00.000Z';
 
-    const bgvMap = new Map<string, ScheduledServiceRow>([
-      [
-        `${serviceTime}|departing`,
-        {
-          service_date: '2026-01-05',
-          direction: 'departing',
-          scheduled_time: serviceTime,
-          peak_period: 'am_peak',
-          status: 'on_time',
-          observed_time: serviceTime,
-          delay_minutes: 0,
-          rtt_uid: 'W12345',
-        },
-      ],
-    ]);
+    const bgvRows: ScheduledServiceRow[] = [
+      {
+        service_date: '2026-01-05',
+        direction: 'departing',
+        scheduled_time: serviceTime,
+        peak_period: 'am_peak',
+        status: 'on_time',
+        observed_time: serviceTime,
+        delay_minutes: 0,
+        rtt_uid: 'W12345',
+      },
+    ];
 
-    const bkgMap = new Map<string, ScheduledServiceRow>([
-      [
-        `${serviceTime}|departing`,
-        {
-          service_date: '2026-01-05',
-          direction: 'departing',
-          scheduled_time: serviceTime,
-          peak_period: 'am_peak',
-          status: 'delayed',
-          observed_time: '2026-01-05T08:22:00.000Z',
-          delay_minutes: 3,
-          rtt_uid: 'W12345',
-        },
-      ],
-    ]);
+    const bkgRows: ScheduledServiceRow[] = [
+      {
+        service_date: '2026-01-05',
+        direction: 'departing', // Direction doesn't matter for bkg map lookup anymore as it uses rtt_uid
+        scheduled_time: '2026-01-05T08:13:00.000Z', // Different scheduled time for BKG
+        peak_period: 'am_peak',
+        status: 'delayed',
+        observed_time: '2026-01-05T08:22:00.000Z',
+        delay_minutes: 3,
+        rtt_uid: 'W12345',
+      },
+    ];
 
     fetchTodayRowsSpy.mockImplementation(async (baseUrl: string, tokenProvider: any, date: string, options: any) => {
-      if (options.code === 'gb-nr:BGV') return bgvMap;
-      if (options.code === 'gb-nr:BKG') return bkgMap;
-      return new Map();
+      if (options.code === 'gb-nr:BGV') return bgvRows;
+      if (options.code === 'gb-nr:BKG') return bkgRows;
+      return [];
     });
 
     await pollOnce(dummyConfig as any, {} as any, {} as any, {} as any);
@@ -129,39 +123,33 @@ describe('pollOnce during sleep period', () => {
     const bgvOldPendingTime = '2026-01-05T08:03:00.000Z'; // 32 mins ago (>= 30 mins)
     const bgvRecentPendingTime = '2026-01-05T08:19:00.000Z'; // 16 mins ago (< 30 mins)
 
-    const bgvMap = new Map<string, ScheduledServiceRow>([
-      [
-        `${bgvOldPendingTime}|departing`,
-        {
-          service_date: '2026-01-05',
-          direction: 'departing',
-          scheduled_time: bgvOldPendingTime,
-          peak_period: 'am_peak',
-          status: 'pending',
-          observed_time: null,
-          delay_minutes: 0,
-          rtt_uid: 'W11111',
-        },
-      ],
-      [
-        `${bgvRecentPendingTime}|departing`,
-        {
-          service_date: '2026-01-05',
-          direction: 'departing',
-          scheduled_time: bgvRecentPendingTime,
-          peak_period: 'am_peak',
-          status: 'pending',
-          observed_time: null,
-          delay_minutes: 0,
-          rtt_uid: 'W22222',
-        },
-      ],
-    ]);
+    const bgvRows: ScheduledServiceRow[] = [
+      {
+        service_date: '2026-01-05',
+        direction: 'departing',
+        scheduled_time: bgvOldPendingTime,
+        peak_period: 'am_peak',
+        status: 'pending',
+        observed_time: null,
+        delay_minutes: 0,
+        rtt_uid: 'W11111',
+      },
+      {
+        service_date: '2026-01-05',
+        direction: 'departing',
+        scheduled_time: bgvRecentPendingTime,
+        peak_period: 'am_peak',
+        status: 'pending',
+        observed_time: null,
+        delay_minutes: 0,
+        rtt_uid: 'W22222',
+      },
+    ];
 
-    // bkgMap empty => all bkg status will be cancelled
+    // bkgRows empty => all bkg status will be cancelled
     fetchTodayRowsSpy.mockImplementation(async (baseUrl: string, tokenProvider: any, date: string, options: any) => {
-      if (options.code === 'gb-nr:BGV') return bgvMap;
-      return new Map();
+      if (options.code === 'gb-nr:BGV') return bgvRows;
+      return [];
     });
 
     await pollOnce(dummyConfig as any, {} as any, {} as any, {} as any);

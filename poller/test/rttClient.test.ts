@@ -117,7 +117,7 @@ describe('fetchTodayRows', () => {
       throw new Error(`unexpected URL: ${url}`);
     });
 
-    const rowsMap = await fetchTodayRows(
+    const rowsArray = await fetchTodayRows(
       'https://data.rtt.io',
       makeTokenProvider(),
       '2026-07-31',
@@ -125,12 +125,12 @@ describe('fetchTodayRows', () => {
       mockFetch as unknown as typeof fetch,
     );
 
-    expect(rowsMap).toBeInstanceOf(Map);
-    expect(rowsMap.size).toBe(4);
+    expect(Array.isArray(rowsArray)).toBe(true);
+    expect(rowsArray.length).toBe(4);
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
     // Verify one of the mapped services from fixture
-    const match = rowsMap.get('2026-07-31T07:04:00.000Z|arriving');
+    const match = rowsArray.find((r) => r.scheduled_time === '2026-07-31T07:04:00.000Z' && r.direction === 'arriving');
     expect(match).toBeDefined();
     expect(match?.status).toBe('cancelled');
     expect(match?.rtt_uid).toBe('gb-nr:L01500:2026-07-31');
@@ -187,7 +187,7 @@ describe('fetchTodayRows', () => {
       return { ok: true, status: 200, json: async () => ({ services: [] }) };
     });
 
-    const rowsMap = await fetchTodayRows(
+    const rowsArray = await fetchTodayRows(
       'https://data.rtt.io',
       tokenProvider,
       '2026-07-31',
@@ -195,14 +195,14 @@ describe('fetchTodayRows', () => {
       mockFetch as unknown as typeof fetch,
     );
 
-    expect(rowsMap.size).toBe(0);
+    expect(rowsArray.length).toBe(0);
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it('treats a 204 response as no services', async () => {
     const mockFetch = vi.fn().mockResolvedValue({ ok: true, status: 204 });
 
-    const rowsMap = await fetchTodayRows(
+    const rowsArray = await fetchTodayRows(
       'https://data.rtt.io',
       makeTokenProvider(),
       '2026-07-31',
@@ -210,7 +210,7 @@ describe('fetchTodayRows', () => {
       mockFetch as unknown as typeof fetch,
     );
 
-    expect(rowsMap.size).toBe(0);
+    expect(rowsArray.length).toBe(0);
   });
 
   it('throws a descriptive error on a non-ok response', async () => {

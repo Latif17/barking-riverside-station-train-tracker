@@ -131,18 +131,15 @@ export async function fetchTodayRows(
   serviceDate: string,
   options: { code: string; filterTo?: string },
   fetchFn: typeof fetch = fetch,
-): Promise<Map<string, ScheduledServiceRow>> {
+): Promise<ScheduledServiceRow[]> {
   const allRttServices = await fetchLocationWindow(baseUrl, tokenProvider, serviceDate, '00:00', '23:59', options, fetchFn);
 
-  // Create a fast lookup map: "scheduled_time|direction" -> RttService
-  const rttMap = new Map<string, ScheduledServiceRow>();
+  const rows: ScheduledServiceRow[] = [];
   for (const s of allRttServices) {
     const mappedRows = mapRttServiceToRows(s);
-    for (const r of mappedRows) {
-      rttMap.set(`${r.scheduled_time}|${r.direction}`, r);
-    }
+    rows.push(...mappedRows);
   }
 
-  return rttMap;
+  return rows;
 }
 
