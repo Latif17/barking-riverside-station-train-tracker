@@ -3,14 +3,33 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { pollOnce, getPollInterval } from '../src/index.js';
 import * as rttClient from '../src/rttClient.js';
 import * as repository from '../src/repository.js';
+import type { ScheduledServiceRow } from '../src/types.js';
 
 describe('pollOnce during sleep period', () => {
   let fetchTodayRowsSpy: any;
   let fetchAllRowsForDateSpy: any;
+  let upsertScheduledServicesSpy: any;
+  let deleteScheduledServicesSpy: any;
+
+  const dummyConfig = {
+    supabaseUrl: 'http://localhost',
+    supabaseServiceRoleKey: 'key',
+    rttBaseUrl: 'http://localhost/bgv',
+    rttBaseUrl2: 'http://localhost/bkg',
+    rttRefreshToken: 'token1',
+    rttRefreshToken2: 'token2',
+    rttStationCode: 'gb-nr:BGV',
+    rttStationCode2: 'gb-nr:BKG',
+    pollIntervalPeakMs: 40000,
+    pollIntervalOffPeakMs: 120000,
+    pollIntervalSleepMs: 60000,
+  };
 
   beforeEach(() => {
     fetchTodayRowsSpy = vi.spyOn(rttClient, 'fetchTodayRows').mockResolvedValue(new Map());
     fetchAllRowsForDateSpy = vi.spyOn(repository, 'fetchAllRowsForDate').mockResolvedValue([]);
+    upsertScheduledServicesSpy = vi.spyOn(repository, 'upsertScheduledServices').mockResolvedValue();
+    deleteScheduledServicesSpy = vi.spyOn(repository, 'deleteScheduledServices').mockResolvedValue();
   });
 
   afterEach(() => {
@@ -22,18 +41,7 @@ describe('pollOnce during sleep period', () => {
     // 02:00 London time (GMT) is sleep period
     vi.setSystemTime(new Date('2026-01-05T02:00:00Z'));
 
-    const dummyConfig = {
-      supabaseUrl: 'http://localhost',
-      supabaseServiceRoleKey: 'key',
-      rttBaseUrl: 'http://localhost',
-      rttRefreshToken: 'token',
-      rttStationCode: 'BGV',
-      pollIntervalPeakMs: 40000,
-      pollIntervalOffPeakMs: 120000,
-      pollIntervalSleepMs: 60000,
-    };
-
-    await pollOnce(dummyConfig as any, {} as any, {} as any);
+    await pollOnce(dummyConfig as any, {} as any, {} as any, {} as any);
 
     expect(fetchTodayRowsSpy).not.toHaveBeenCalled();
     expect(fetchAllRowsForDateSpy).not.toHaveBeenCalled();
@@ -43,21 +51,133 @@ describe('pollOnce during sleep period', () => {
     // 08:00 London time (GMT) is am_peak period
     vi.setSystemTime(new Date('2026-01-05T08:00:00Z'));
 
-    const dummyConfig = {
-      supabaseUrl: 'http://localhost',
-      supabaseServiceRoleKey: 'key',
-      rttBaseUrl: 'http://localhost',
-      rttRefreshToken: 'token',
-      rttStationCode: 'BGV',
-      pollIntervalPeakMs: 40000,
-      pollIntervalOffPeakMs: 120000,
-      pollIntervalSleepMs: 60000,
-    };
+    await pollOnce(dummyConfig as any, {} as any, {} as any, {} as any);
 
-    await pollOnce(dummyConfig as any, {} as any, {} as any);
-
-    expect(fetchTodayRowsSpy).toHaveBeenCalled();
+    expect(fetchTodayRowsSpy).toHaveBeenCalledTimes(2);
     expect(fetchAllRowsForDateSpy).toHaveBeenCalled();
+  });
+
+  it('fetches both BGV and BKG streams concurrently and merges with schedule', async () => {
+    // Monday 08:00 London time (winter: 2026-01-05 is GMT)
+    vi.setSystemTime(new Date('2026-01-05T08:00:00Z'));
+
+    const serviceTime = '2026-01-05T08:19:00.000Z';
+
+    const bgvMap = new Map<string, ScheduledServiceRow>([
+      [
+        `${serviceTime}|departing`,
+        {
+          service_date: '2026-01-05',
+          direction: 'departing',
+          scheduled_time: serviceTime,
+          peak_period: 'am_peak',
+          status: 'on_time',
+          observed_time: serviceTime,
+          delay_minutes: 0,
+          rtt_uid: 'W12345',
+        },
+      ],
+    ]);
+
+    const bkgMap = new Map<string, ScheduledServiceRow>([
+      [
+        `${serviceTime}|departing`,
+        {
+          service_date: '2026-01-05',
+          direction: 'departing',
+          scheduled_time: serviceTime,
+          peak_period: 'am_peak',
+          status: 'delayed',
+          observed_time: '2026-01-05T08:22:00.000Z',
+          delay_minutes: 3,
+          rtt_uid: 'W12345',
+        },
+      ],
+    ]);
+
+    fetchTodayRowsSpy.mockImplementation(async (baseUrl: string, tokenProvider: any, date: string, options: any) => {
+      if (options.code === 'gb-nr:BGV') return bgvMap;
+      if (options.code === 'gb-nr:BKG') return bkgMap;
+      return new Map();
+    });
+
+    await pollOnce(dummyConfig as any, {} as any, {} as any, {} as any);
+
+    expect(fetchTodayRowsSpy).toHaveBeenCalledWith('http://localhost/bgv', expect.anything(), '2026-01-05', {
+      code: 'gb-nr:BGV',
+    });
+    expect(fetchTodayRowsSpy).toHaveBeenCalledWith('http://localhost/bkg', expect.anything(), '2026-01-05', {
+      code: 'gb-nr:BKG',
+      filterTo: 'gb-nr:BGV',
+    });
+
+    expect(upsertScheduledServicesSpy).toHaveBeenCalled();
+    const upsertedRows: ScheduledServiceRow[] = upsertScheduledServicesSpy.mock.calls[0][1];
+    const targetRow = upsertedRows.find((r) => r.scheduled_time === serviceTime && r.direction === 'departing');
+
+    expect(targetRow).toBeDefined();
+    expect(targetRow?.status).toBe('on_time');
+    expect(targetRow?.rtt_uid).toBe('W12345');
+    expect(targetRow?.upstream_status).toBe('delayed');
+    expect(targetRow?.upstream_delay_minutes).toBe(3);
+  });
+
+  it('marks missing BGV or BKG services as cancelled and cancels ghost pending services older than 30 minutes', async () => {
+    // 08:35 London time on 2026-01-05
+    vi.setSystemTime(new Date('2026-01-05T08:35:00Z'));
+
+    const bgvOldPendingTime = '2026-01-05T08:03:00.000Z'; // 32 mins ago (>= 30 mins)
+    const bgvRecentPendingTime = '2026-01-05T08:19:00.000Z'; // 16 mins ago (< 30 mins)
+
+    const bgvMap = new Map<string, ScheduledServiceRow>([
+      [
+        `${bgvOldPendingTime}|departing`,
+        {
+          service_date: '2026-01-05',
+          direction: 'departing',
+          scheduled_time: bgvOldPendingTime,
+          peak_period: 'am_peak',
+          status: 'pending',
+          observed_time: null,
+          delay_minutes: 0,
+          rtt_uid: 'W11111',
+        },
+      ],
+      [
+        `${bgvRecentPendingTime}|departing`,
+        {
+          service_date: '2026-01-05',
+          direction: 'departing',
+          scheduled_time: bgvRecentPendingTime,
+          peak_period: 'am_peak',
+          status: 'pending',
+          observed_time: null,
+          delay_minutes: 0,
+          rtt_uid: 'W22222',
+        },
+      ],
+    ]);
+
+    // bkgMap empty => all bkg status will be cancelled
+    fetchTodayRowsSpy.mockImplementation(async (baseUrl: string, tokenProvider: any, date: string, options: any) => {
+      if (options.code === 'gb-nr:BGV') return bgvMap;
+      return new Map();
+    });
+
+    await pollOnce(dummyConfig as any, {} as any, {} as any, {} as any);
+
+    expect(upsertScheduledServicesSpy).toHaveBeenCalled();
+    const upsertedRows: ScheduledServiceRow[] = upsertScheduledServicesSpy.mock.calls[0][1];
+
+    const oldRow = upsertedRows.find((r) => r.scheduled_time === bgvOldPendingTime && r.direction === 'departing');
+    expect(oldRow).toBeDefined();
+    expect(oldRow?.status).toBe('cancelled'); // Cancelled due to ghost threshold >= 30m
+    expect(oldRow?.upstream_status).toBe('cancelled'); // Missing from BKG
+
+    const recentRow = upsertedRows.find((r) => r.scheduled_time === bgvRecentPendingTime && r.direction === 'departing');
+    expect(recentRow).toBeDefined();
+    expect(recentRow?.status).toBe('pending'); // Still pending since < 30m
+    expect(recentRow?.upstream_status).toBe('cancelled'); // Missing from BKG
   });
 });
 
@@ -84,3 +204,4 @@ describe('getPollInterval', () => {
     expect(getPollInterval('sleep', dummyConfig)).toBe(60000);
   });
 });
+
