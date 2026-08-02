@@ -13,8 +13,8 @@ We will adopt a **Unified "End of Day" Strategy**, heavily subsidizing aggressiv
 
 ### Architecture
 Every tick, the poller will make exactly one request to `/rtt/location`:
-- `timeFrom`: `[now - 30 minutes]` (to catch recently departed trains and feed into the force-resolve fallback)
-- `timeTo`: `23:59` today (to catch all upcoming trains and advance cancellations)
+- `timeFrom`: `00:00` (Start of the day)
+- `timeTo`: `23:59` (End of the day)
 
 ### Polling Budget (Daily)
 The script will run on a dynamic timer based on the time of day:
@@ -39,7 +39,7 @@ The script will run on a dynamic timer based on the time of day:
 
 3. **`rttClient.ts`**
    - Refactor `fetchTodayRows` to make a single call to `fetchLocationWindow`.
-   - Compute `timeFrom = now - 30 mins` and `timeTo = end of today (23:59)`.
+   - Pass `00:00` and `23:59` to `fetchLocationWindow`.
 
 4. **`index.ts`**
    - Update the `tick` logic to support the new `sleep` period, applying the correct delay.

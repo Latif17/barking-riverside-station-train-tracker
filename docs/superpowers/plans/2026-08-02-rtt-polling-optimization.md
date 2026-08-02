@@ -4,7 +4,7 @@
 
 **Goal:** Implement a unified end-of-day API polling strategy to stay under RTT rate limits.
 
-**Architecture:** We will modify `rttClient` to make 1 request per tick covering `-30 mins` to `23:59`. We will introduce a new `sleep` peak period from 01:00 to 05:00 and adjust polling intervals in configuration to fit the 1000 requests/day budget.
+**Architecture:** We will modify `rttClient` to make 1 request per tick covering `00:00` to `23:59`. We will introduce a new `sleep` peak period from 01:00 to 05:00 and adjust polling intervals in configuration to fit the 1000 requests/day budget.
 
 **Tech Stack:** TypeScript, Node.js, Vitest
 
@@ -162,36 +162,8 @@ export async function fetchTodayRows(
   serviceDate: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<ScheduledServiceRow[]> {
-  const now = new Date();
-  
-  const fromDate = new Date(now.getTime() - 30 * 60 * 1000); // 30 mins ago
-  const toDate = new Date(now.getTime());
-  toDate.setUTCHours(23, 59, 0, 0); // end of today UTC (approximate enough for window)
-  
-  // RTT location accepts full ISO strings
-  const timeFrom = fromDate.toISOString();
-  const timeTo = toDate.toISOString();
-  
-  const url = `${config.rttBaseUrl}/rtt/location?code=${config.rttStationCode}&timeFrom=${timeFrom}&timeTo=${timeTo}`;
-
-  const request = (token: string) => fetchFn(url, { headers: { Authorization: `Bearer ${token}` } });
-
-  let token = await tokenProvider.getAccessToken();
-  let response = await request(token);
-
-  if (response.status === 401) {
-    token = await tokenProvider.forceRefresh();
-    response = await request(token);
-  }
-
-  if (response.status === 204) return [];
-  if (!response.ok) {
-    const body = await response.text().catch(() => '<unreadable body>');
-    throw new Error(`RTT location request failed with status ${response.status} for ${url}: ${body}`);
-  }
-
-  const body = (await response.json()) as RttLocationResponse;
-  return (body.services ?? []).flatMap(mapRttServiceToRows);
+  const fullDay = await fetchLocationWindow(config, tokenProvider, serviceDate, '00:00', '23:59', fetchFn);
+  return fullDay.flatMap(mapRttServiceToRows);
 }
 ```
 
