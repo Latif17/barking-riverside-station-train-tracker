@@ -64,6 +64,6 @@ export async function upsertScheduledServices(
 
   const { error } = await client
     .from('scheduled_services')
-    .upsert(sanitizedRows, { onConflict: 'service_date,direction,rtt_uid' });
+    .upsert(sanitizedRows, { onConflict: 'service_date,direction,scheduled_time' });
   if (error) throw new Error(`upsertScheduledServices failed: ${error.message}`);
 }

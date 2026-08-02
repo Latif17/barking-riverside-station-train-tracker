@@ -54,7 +54,7 @@ describe('upsertScheduledServices', () => {
       },
     ] as any;
     await upsertScheduledServices(client, rows);
-    expect(upsert).toHaveBeenCalledWith(rows, { onConflict: 'service_date,direction,rtt_uid' });
+    expect(upsert).toHaveBeenCalledWith(rows, { onConflict: 'service_date,direction,scheduled_time' });
   });
 
   it('throws if the upsert returns an error', async () => {
