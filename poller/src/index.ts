@@ -22,10 +22,11 @@ export async function pollOnce(
 
   const serviceDate = todayLondon();
 
-  const [freshRows, dbRows] = await Promise.all([
-    fetchTodayRows(config, tokenProvider, serviceDate),
+  const [freshRowsMap, dbRows] = await Promise.all([
+    fetchTodayRows(config.rttBaseUrl, tokenProvider, serviceDate, { code: config.rttStationCode }),
     fetchAllRowsForDate(client, serviceDate),
   ]);
+  const freshRows = Array.from(freshRowsMap.values());
 
   const pendingRows = dbRows.filter((r) => r.status === 'pending');
   const forceResolvedRows = applyForceResolveFallback(pendingRows, freshRows, now);
@@ -36,7 +37,7 @@ export async function pollOnce(
 
   if (rowsToUpsert.length === 0 && rowsToDelete.length === 0) return;
 
-  const uidsToDelete = rowsToDelete.map((r) => r.rtt_uid);
+  const uidsToDelete = rowsToDelete.map((r) => r.rtt_uid).filter((uid): uid is string => uid !== null);
 
   if (DRY_RUN) {
     console.log(`[dry-run] would upsert ${rowsToUpsert.length} rows:`, rowsToUpsert);

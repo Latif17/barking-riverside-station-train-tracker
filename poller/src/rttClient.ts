@@ -3,7 +3,6 @@ import { computePeakPeriod } from './peakPeriod.js';
 import { londonTimeToUtcIso } from './dateHelpers.js';
 import type { Direction, ScheduledServiceRow } from './types.js';
 import type { TokenProvider } from './rttAuth.js';
-import { getScheduledServicesForDate } from './schedule.js';
 
 export interface RttIndividualTemporalData {
   scheduleAdvertised?: string;
@@ -26,11 +25,6 @@ export interface RttService {
 
 interface RttLocationResponse {
   services?: RttService[];
-}
-
-export interface RttClientConfig {
-  rttBaseUrl: string;
-  rttStationCode: string;
 }
 
 function directionsAndBlocks(
@@ -91,16 +85,21 @@ export function mapRttServiceToRows(service: RttService): ScheduledServiceRow[] 
 }
 
 async function fetchLocationWindow(
-  config: RttClientConfig,
+  baseUrl: string,
   tokenProvider: TokenProvider,
   serviceDate: string,
   fromHhmm: string,
   toHhmm: string,
+  options: { code: string; filterTo?: string },
   fetchFn: typeof fetch,
 ): Promise<RttService[]> {
   const timeFrom = londonTimeToUtcIso(serviceDate, fromHhmm);
   const timeTo = londonTimeToUtcIso(serviceDate, toHhmm);
-  const url = `${config.rttBaseUrl}/rtt/location?code=${config.rttStationCode}&timeFrom=${timeFrom}&timeTo=${timeTo}`;
+  let url = `${baseUrl}/rtt/location?code=${options.code}&timeFrom=${timeFrom}&timeTo=${timeTo}`;
+
+  if (options.filterTo) {
+    url += `&filterTo=${options.filterTo}`;
+  }
 
   const request = (token: string) => fetchFn(url, { headers: { Authorization: `Bearer ${token}` } });
 
@@ -127,12 +126,13 @@ async function fetchLocationWindow(
 }
 
 export async function fetchTodayRows(
-  config: RttClientConfig,
+  baseUrl: string,
   tokenProvider: TokenProvider,
   serviceDate: string,
+  options: { code: string; filterTo?: string },
   fetchFn: typeof fetch = fetch,
-): Promise<ScheduledServiceRow[]> {
-  const allRttServices = await fetchLocationWindow(config, tokenProvider, serviceDate, '00:00', '23:59', fetchFn);
+): Promise<Map<string, ScheduledServiceRow>> {
+  const allRttServices = await fetchLocationWindow(baseUrl, tokenProvider, serviceDate, '00:00', '23:59', options, fetchFn);
 
   // Create a fast lookup map: "scheduled_time|direction" -> RttService
   const rttMap = new Map<string, ScheduledServiceRow>();
@@ -143,31 +143,6 @@ export async function fetchTodayRows(
     }
   }
 
-  // Get source of truth schedule
-  const expectedRows = getScheduledServicesForDate(serviceDate);
-
-  // Merge live data
-  const nowMs = Date.now();
-  for (const row of expectedRows) {
-    const rttRow = rttMap.get(`${row.scheduled_time}|${row.direction}`);
-    if (rttRow) {
-      // Train found in RTT: use its status and times
-      row.status = rttRow.status;
-      row.observed_time = rttRow.observed_time;
-      row.delay_minutes = rttRow.delay_minutes;
-      row.rtt_uid = rttRow.rtt_uid;
-
-      // Force resolve ghost trains that fell off the live feed without arriving
-      const timeSinceScheduled = nowMs - new Date(row.scheduled_time).getTime();
-      if (row.status === 'pending' && timeSinceScheduled >= 30 * 60 * 1000) {
-        row.status = 'cancelled';
-      }
-    } else {
-      // Train completely missing from RTT: it was cancelled early
-      row.status = 'cancelled';
-    }
-  }
-
-  return expectedRows;
+  return rttMap;
 }
 

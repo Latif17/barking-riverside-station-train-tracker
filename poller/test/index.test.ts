@@ -9,7 +9,7 @@ describe('pollOnce during sleep period', () => {
   let fetchAllRowsForDateSpy: any;
 
   beforeEach(() => {
-    fetchTodayRowsSpy = vi.spyOn(rttClient, 'fetchTodayRows').mockResolvedValue([]);
+    fetchTodayRowsSpy = vi.spyOn(rttClient, 'fetchTodayRows').mockResolvedValue(new Map());
     fetchAllRowsForDateSpy = vi.spyOn(repository, 'fetchAllRowsForDate').mockResolvedValue([]);
   });
 
