@@ -3,6 +3,7 @@ import { computePeakPeriod } from './peakPeriod.js';
 import { londonTimeToUtcIso } from './dateHelpers.js';
 import type { Direction, ScheduledServiceRow } from './types.js';
 import type { TokenProvider } from './rttAuth.js';
+import { getScheduledServicesForDate } from './schedule.js';
 
 export interface RttIndividualTemporalData {
   scheduleAdvertised?: string;
@@ -129,6 +130,40 @@ export async function fetchTodayRows(
   serviceDate: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<ScheduledServiceRow[]> {
-  const fullDay = await fetchLocationWindow(config, tokenProvider, serviceDate, '00:00', '23:59', fetchFn);
-  return fullDay.flatMap(mapRttServiceToRows);
+  const [morning, evening] = await Promise.all([
+    fetchLocationWindow(config, tokenProvider, serviceDate, '00:00', '12:00', fetchFn),
+    fetchLocationWindow(config, tokenProvider, serviceDate, '12:00', '23:59', fetchFn),
+  ]);
+
+  const allRttServices = [...morning, ...evening];
+
+  // Create a fast lookup map: "scheduled_time|direction" -> RttService
+  const rttMap = new Map<string, ScheduledServiceRow>();
+  for (const s of allRttServices) {
+    const mappedRows = mapRttServiceToRows(s);
+    for (const r of mappedRows) {
+      rttMap.set(`${r.scheduled_time}|${r.direction}`, r);
+    }
+  }
+
+  // Get source of truth schedule
+  const expectedRows = getScheduledServicesForDate(serviceDate);
+
+  // Merge live data
+  for (const row of expectedRows) {
+    const rttRow = rttMap.get(`${row.scheduled_time}|${row.direction}`);
+    if (rttRow) {
+      // Train found in RTT: use its status and times
+      row.status = rttRow.status;
+      row.observed_time = rttRow.observed_time;
+      row.delay_minutes = rttRow.delay_minutes;
+      row.rtt_uid = rttRow.rtt_uid;
+    } else {
+      // Train completely missing from RTT: it was cancelled early
+      row.status = 'cancelled';
+    }
+  }
+
+  return expectedRows;
 }
+

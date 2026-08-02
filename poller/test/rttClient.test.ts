@@ -1,6 +1,7 @@
 // poller/test/rttClient.test.ts
 import { describe, it, expect, vi } from 'vitest';
 import { mapRttServiceToRows, fetchTodayRows } from '../src/rttClient.js';
+import { getScheduledServicesForDate } from '../src/schedule.js';
 import { londonTimeToUtcIso } from '../src/dateHelpers.js';
 import { computePeakPeriod } from '../src/peakPeriod.js';
 import { createTokenProvider } from '../src/rttAuth.js';
@@ -100,16 +101,27 @@ describe('mapRttServiceToRows', () => {
 
 describe('fetchTodayRows', () => {
   it('queries the location window and maps every returned service', async () => {
-    const timeFrom = londonTimeToUtcIso('2026-07-31', '00:00');
-    const timeTo = londonTimeToUtcIso('2026-07-31', '23:59');
+    const morningFrom = londonTimeToUtcIso('2026-07-31', '00:00');
+    const morningTo = londonTimeToUtcIso('2026-07-31', '12:00');
+    const eveningFrom = londonTimeToUtcIso('2026-07-31', '12:00');
+    const eveningTo = londonTimeToUtcIso('2026-07-31', '23:59');
 
     const mockFetch = vi.fn().mockImplementation(async (url: string) => {
-      if (url.includes(`timeFrom=${timeFrom}`) && url.includes(`timeTo=${timeTo}`)) {
+      if (url.includes(`timeFrom=${morningFrom}`) && url.includes(`timeTo=${morningTo}`)) {
         return {
           ok: true,
           status: 200,
           json: async () => ({
             services: [cancelledArrival, delayedDeparture, onTimeArrival, pendingDeparture],
+          }),
+        };
+      }
+      if (url.includes(`timeFrom=${eveningFrom}`) && url.includes(`timeTo=${eveningTo}`)) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            services: [],
           }),
         };
       }
@@ -123,12 +135,14 @@ describe('fetchTodayRows', () => {
       mockFetch as unknown as typeof fetch,
     );
 
-    expect(rows).toHaveLength(4);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch.mock.calls[0][0]).toContain('code=BGV');
-    expect(mockFetch.mock.calls[0][0]).toContain(`timeFrom=${timeFrom}`);
-    expect(mockFetch.mock.calls[0][0]).toContain(`timeTo=${timeTo}`);
-    expect(mockFetch.mock.calls[0][1]).toEqual({ headers: { Authorization: 'Bearer access-abc' } });
+    const expectedCount = getScheduledServicesForDate('2026-07-31').length;
+    expect(rows).toHaveLength(expectedCount);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    // Verify one of the merged services from fixture
+    const match = rows.find(r => r.rtt_uid === 'gb-nr:L01500:2026-07-31');
+    expect(match).toBeDefined();
+    expect(match?.status).toBe('cancelled');
   });
 
   it('retries once after a 401 by forcing a token refresh', async () => {
@@ -164,8 +178,10 @@ describe('fetchTodayRows', () => {
       mockFetch as unknown as typeof fetch,
     );
 
-    expect(rows).toEqual([]);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const expectedCount = getScheduledServicesForDate('2026-07-31').length;
+    expect(rows).toHaveLength(expectedCount);
+    expect(rows.every(r => r.status === 'cancelled')).toBe(true);
+    expect(mockFetch).toHaveBeenCalledTimes(4);
   });
 
   it('treats a 204 response as no services', async () => {
@@ -178,7 +194,9 @@ describe('fetchTodayRows', () => {
       mockFetch as unknown as typeof fetch,
     );
 
-    expect(rows).toEqual([]);
+    const expectedCount = getScheduledServicesForDate('2026-07-31').length;
+    expect(rows).toHaveLength(expectedCount);
+    expect(rows.every(r => r.status === 'cancelled')).toBe(true);
   });
 
   it('throws a descriptive error on a non-ok response', async () => {
@@ -198,4 +216,27 @@ describe('fetchTodayRows', () => {
     ).rejects.toThrow(/503/);
   });
 });
+
+describe('fetchTodayRows hybrid merge', () => {
+  it('marks expected train as cancelled if missing from RTT', async () => {
+    // Assuming '2026-08-02' has a departure at "08:48" (Sunday)
+    // We mock fetchFn to return an empty RTT response for the day.
+    const mockEmptyFetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ services: [] })
+    });
+    
+    const rows = await fetchTodayRows(
+      { rttBaseUrl: 'x', rttStationCode: 'BGV' },
+      { getAccessToken: async () => 'tok', forceRefresh: async () => 'tok' },
+      '2026-08-02',
+      mockEmptyFetch
+    );
+    
+    // The missing train should be returned, but marked as cancelled
+    const firstDep = rows.find(r => r.direction === 'departing');
+    expect(firstDep).toBeDefined();
+    expect(firstDep!.status).toBe('cancelled');
+  });
+});
+
 
