@@ -14,5 +14,5 @@ export interface ScheduledServiceRow {
   status: ServiceStatus;
   observed_time?: string | null;
   delay_minutes?: number | null;
-  rtt_uid: string;
+  rtt_uid: string | null;
 }
