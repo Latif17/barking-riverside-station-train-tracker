@@ -17,4 +17,12 @@ describe('schedule', () => {
     const rows = getScheduledServicesForDate('2026-08-02');
     expect(rows.some(r => r.direction === 'departing')).toBe(true);
   });
+
+  it('generates expected services for a Saturday', () => {
+    // 2026-08-08 is a Saturday
+    const rows = getScheduledServicesForDate('2026-08-08');
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.some(r => r.direction === 'departing')).toBe(true);
+    expect(rows.some(r => r.direction === 'arriving')).toBe(true);
+  });
 });

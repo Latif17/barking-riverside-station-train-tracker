@@ -27,7 +27,7 @@ function loadSchedule(): ScheduleData {
 export function getScheduledServicesForDate(serviceDate: string): ScheduledServiceRow[] {
   const schedule = loadSchedule();
   const date = new Date(serviceDate);
-  const day = date.getDay(); // 0 = Sunday, 6 = Saturday
+  const day = date.getUTCDay(); // 0 = Sunday, 6 = Saturday
 
   let dayKey: 'weekday' | 'saturday' | 'sunday' = 'weekday';
   if (day === 0) dayKey = 'sunday';
