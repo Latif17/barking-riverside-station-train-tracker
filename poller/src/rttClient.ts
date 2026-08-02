@@ -130,12 +130,7 @@ export async function fetchTodayRows(
   serviceDate: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<ScheduledServiceRow[]> {
-  const [morning, evening] = await Promise.all([
-    fetchLocationWindow(config, tokenProvider, serviceDate, '00:00', '12:00', fetchFn),
-    fetchLocationWindow(config, tokenProvider, serviceDate, '12:00', '23:59', fetchFn),
-  ]);
-
-  const allRttServices = [...morning, ...evening];
+  const allRttServices = await fetchLocationWindow(config, tokenProvider, serviceDate, '00:00', '23:59', fetchFn);
 
   // Create a fast lookup map: "scheduled_time|direction" -> RttService
   const rttMap = new Map<string, ScheduledServiceRow>();

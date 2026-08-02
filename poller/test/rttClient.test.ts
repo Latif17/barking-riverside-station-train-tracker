@@ -101,27 +101,16 @@ describe('mapRttServiceToRows', () => {
 
 describe('fetchTodayRows', () => {
   it('queries the location window and maps every returned service', async () => {
-    const morningFrom = londonTimeToUtcIso('2026-07-31', '00:00');
-    const morningTo = londonTimeToUtcIso('2026-07-31', '12:00');
-    const eveningFrom = londonTimeToUtcIso('2026-07-31', '12:00');
-    const eveningTo = londonTimeToUtcIso('2026-07-31', '23:59');
+    const timeFrom = londonTimeToUtcIso('2026-07-31', '00:00');
+    const timeTo = londonTimeToUtcIso('2026-07-31', '23:59');
 
     const mockFetch = vi.fn().mockImplementation(async (url: string) => {
-      if (url.includes(`timeFrom=${morningFrom}`) && url.includes(`timeTo=${morningTo}`)) {
+      if (url.includes(`timeFrom=${timeFrom}`) && url.includes(`timeTo=${timeTo}`)) {
         return {
           ok: true,
           status: 200,
           json: async () => ({
             services: [cancelledArrival, delayedDeparture, onTimeArrival, pendingDeparture],
-          }),
-        };
-      }
-      if (url.includes(`timeFrom=${eveningFrom}`) && url.includes(`timeTo=${eveningTo}`)) {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => ({
-            services: [],
           }),
         };
       }
@@ -137,7 +126,7 @@ describe('fetchTodayRows', () => {
 
     const expectedCount = getScheduledServicesForDate('2026-07-31').length;
     expect(rows).toHaveLength(expectedCount);
-    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
 
     // Verify one of the merged services from fixture
     const match = rows.find(r => r.rtt_uid === 'gb-nr:L01500:2026-07-31');
@@ -181,7 +170,7 @@ describe('fetchTodayRows', () => {
     const expectedCount = getScheduledServicesForDate('2026-07-31').length;
     expect(rows).toHaveLength(expectedCount);
     expect(rows.every(r => r.status === 'cancelled')).toBe(true);
-    expect(mockFetch).toHaveBeenCalledTimes(4);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it('treats a 204 response as no services', async () => {
