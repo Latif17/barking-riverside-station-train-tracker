@@ -60,6 +60,9 @@ export async function upsertScheduledServices(
     observed_time: row.observed_time ?? null,
     delay_minutes: row.delay_minutes ?? null,
     rtt_uid: row.rtt_uid,
+    upstream_status: row.upstream_status ?? null,
+    upstream_observed_time: row.upstream_observed_time ?? null,
+    upstream_delay_minutes: row.upstream_delay_minutes ?? null,
   }));
 
   const { error } = await client
