@@ -10,13 +10,17 @@ import { computePeakPeriod } from './peakPeriod.js';
 
 const DRY_RUN = process.env.DRY_RUN === 'true';
 
-async function pollOnce(
+export async function pollOnce(
   config: ReturnType<typeof loadConfig>,
   client: ReturnType<typeof createSupabaseClient>,
   tokenProvider: ReturnType<typeof createTokenProvider>,
 ) {
-  const serviceDate = todayLondon();
   const now = new Date();
+  if (computePeakPeriod(now) === 'sleep') {
+    return; // Skip polling entirely
+  }
+
+  const serviceDate = todayLondon();
 
   const [freshRows, dbRows] = await Promise.all([
     fetchTodayRows(config, tokenProvider, serviceDate),
@@ -45,6 +49,19 @@ async function pollOnce(
   console.log(`Upserted ${rowsToUpsert.length} rows, Deleted ${uidsToDelete.length} obsolete rows`);
 }
 
+export function getPollInterval(
+  period: ReturnType<typeof computePeakPeriod>,
+  config: ReturnType<typeof loadConfig>,
+): number {
+  if (period === 'am_peak' || period === 'pm_peak') {
+    return config.pollIntervalPeakMs;
+  }
+  if (period === 'sleep') {
+    return config.pollIntervalSleepMs;
+  }
+  return config.pollIntervalOffPeakMs;
+}
+
 async function main() {
   const config = loadConfig();
   const client = createSupabaseClient(config);
@@ -53,7 +70,7 @@ async function main() {
     refreshToken: config.rttRefreshToken,
   });
 
-  console.log(`Starting poller (dry run: ${DRY_RUN}, peak interval: ${config.pollIntervalPeakMs}ms, off-peak interval: ${config.pollIntervalOffPeakMs}ms)`);
+  console.log(`Starting poller (dry run: ${DRY_RUN}, peak interval: ${config.pollIntervalPeakMs}ms, off-peak interval: ${config.pollIntervalOffPeakMs}ms, sleep interval: ${config.pollIntervalSleepMs}ms)`);
 
   const tick = () => {
     const startTime = Date.now();
@@ -64,11 +81,7 @@ async function main() {
       .finally(() => {
         const now = new Date();
         const period = computePeakPeriod(now);
-        
-        let interval = config.pollIntervalOffPeakMs;
-        if (period === 'am_peak' || period === 'pm_peak') {
-          interval = config.pollIntervalPeakMs;
-        }
+        const interval = getPollInterval(period, config);
 
         const elapsed = Date.now() - startTime;
         const delay = Math.max(0, interval - elapsed);
@@ -80,4 +93,6 @@ async function main() {
   tick();
 }
 
-main();
+if (process.env.NODE_ENV !== 'test') {
+  main();
+}

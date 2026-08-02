@@ -1,6 +1,7 @@
 // poller/src/types.ts
 
-export type { PeakPeriod } from './peakPeriod.js';
+import type { PeakPeriod } from './peakPeriod.js';
+export type { PeakPeriod };
 export type Direction = 'departing' | 'arriving';
 export type ServiceStatus = 'pending' | 'on_time' | 'delayed' | 'cancelled';
 
