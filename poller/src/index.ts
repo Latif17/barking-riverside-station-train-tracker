@@ -6,6 +6,7 @@ import { createTokenProvider } from './rttAuth.js';
 import { fetchTodayRows } from './rttClient.js';
 import { applyForceResolveFallback, dedupeRowsByNaturalKey, dedupeByScheduledTime } from './forceResolve.js';
 import { todayLondon } from './dateHelpers.js';
+import { computePeakPeriod } from './peakPeriod.js';
 
 const DRY_RUN = process.env.DRY_RUN === 'true';
 
@@ -52,16 +53,31 @@ async function main() {
     refreshToken: config.rttRefreshToken,
   });
 
-  console.log(`Starting poller (dry run: ${DRY_RUN}, interval: ${config.pollIntervalMs}ms)`);
+  console.log(`Starting poller (dry run: ${DRY_RUN}, peak interval: ${config.pollIntervalPeakMs}ms, off-peak interval: ${config.pollIntervalOffPeakMs}ms)`);
 
   const tick = () => {
-    pollOnce(config, client, tokenProvider).catch((err) => {
-      console.error('Poll cycle failed:', err);
-    });
+    const startTime = Date.now();
+    pollOnce(config, client, tokenProvider)
+      .catch((err) => {
+        console.error('Poll cycle failed:', err);
+      })
+      .finally(() => {
+        const now = new Date();
+        const period = computePeakPeriod(now);
+        
+        let interval = config.pollIntervalOffPeakMs;
+        if (period === 'am_peak' || period === 'pm_peak') {
+          interval = config.pollIntervalPeakMs;
+        }
+
+        const elapsed = Date.now() - startTime;
+        const delay = Math.max(0, interval - elapsed);
+
+        setTimeout(tick, delay);
+      });
   };
 
   tick();
-  setInterval(tick, config.pollIntervalMs);
 }
 
 main();

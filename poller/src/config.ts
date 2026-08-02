@@ -6,7 +6,8 @@ export interface Config {
   rttRefreshToken: string;
   supabaseUrl: string;
   supabaseServiceRoleKey: string;
-  pollIntervalMs: number;
+  pollIntervalPeakMs: number;
+  pollIntervalOffPeakMs: number;
 }
 
 function requireEnv(name: string): string {
@@ -27,8 +28,11 @@ export function loadConfig(): Config {
     rttRefreshToken: requireEnv('RTT_REFRESH_TOKEN'),
     supabaseUrl: requireEnv('SUPABASE_URL'),
     supabaseServiceRoleKey: requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
-    pollIntervalMs: process.env.POLL_INTERVAL_MS
-      ? Number(process.env.POLL_INTERVAL_MS)
-      : 45000,
+    pollIntervalPeakMs: process.env.POLL_INTERVAL_PEAK_MS
+      ? Number(process.env.POLL_INTERVAL_PEAK_MS)
+      : 20000,
+    pollIntervalOffPeakMs: process.env.POLL_INTERVAL_OFF_PEAK_MS
+      ? Number(process.env.POLL_INTERVAL_OFF_PEAK_MS)
+      : 90000,
   };
 }
