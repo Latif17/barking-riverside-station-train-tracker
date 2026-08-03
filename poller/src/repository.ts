@@ -37,6 +37,8 @@ export async function upsertScheduledServices(
     upstream_status: row.upstream_status ?? null,
     upstream_observed_time: row.upstream_observed_time ?? null,
     upstream_delay_minutes: row.upstream_delay_minutes ?? null,
+    cancel_reason: row.cancel_reason ?? null,
+    delay_reason: row.delay_reason ?? null,
   }));
 
   const { error } = await client

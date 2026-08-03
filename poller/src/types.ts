@@ -18,4 +18,6 @@ export interface ScheduledServiceRow {
   upstream_status?: ServiceStatus | null;
   upstream_observed_time?: string | null;
   upstream_delay_minutes?: number | null;
+  cancel_reason?: string | null;
+  delay_reason?: string | null;
 }

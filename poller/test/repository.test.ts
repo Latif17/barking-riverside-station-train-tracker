@@ -21,7 +21,7 @@ describe('upsertScheduledServices', () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 
-  it('upserts on the natural key including upstream fields', async () => {
+  it('upserts on the natural key including upstream fields and reasons', async () => {
     const { client, upsert } = makeFakeClient();
     const inputRows: ScheduledServiceRow[] = [
       {
@@ -36,6 +36,8 @@ describe('upsertScheduledServices', () => {
         upstream_status: 'delayed',
         upstream_observed_time: '2026-07-31T06:58:00.000Z',
         upstream_delay_minutes: 3,
+        cancel_reason: 'Signal failure',
+        delay_reason: 'Train fault',
       },
       {
         service_date: '2026-07-31',
@@ -61,6 +63,8 @@ describe('upsertScheduledServices', () => {
           upstream_status: 'delayed',
           upstream_observed_time: '2026-07-31T06:58:00.000Z',
           upstream_delay_minutes: 3,
+          cancel_reason: 'Signal failure',
+          delay_reason: 'Train fault',
         },
         {
           service_date: '2026-07-31',
@@ -74,6 +78,8 @@ describe('upsertScheduledServices', () => {
           upstream_status: null,
           upstream_observed_time: null,
           upstream_delay_minutes: null,
+          cancel_reason: null,
+          delay_reason: null,
         },
       ],
       { onConflict: 'service_date,direction,scheduled_time' }
