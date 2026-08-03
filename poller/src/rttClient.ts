@@ -10,6 +10,10 @@ export interface RttIndividualTemporalData {
   realtimeForecast?: string;
   realtimeAdvertisedLateness?: number;
   isCancelled?: boolean;
+  cancellationReasonCode?: string;
+  cancellationReasonShortText?: string;
+  latenessReasonCode?: string;
+  latenessReasonShortText?: string;
 }
 
 export interface RttService {
@@ -82,6 +86,8 @@ export function mapRttServiceToRows(service: RttService): ScheduledServiceRow[] 
       observed_time: block.realtimeActual ? new Date(block.realtimeActual).toISOString() : null,
       delay_minutes,
       rtt_uid,
+      cancel_reason: block.cancellationReasonShortText ?? block.cancellationReasonCode ?? null,
+      delay_reason: block.latenessReasonShortText ?? block.latenessReasonCode ?? null,
     };
   });
 }

@@ -31,6 +31,8 @@ describe('mapRttServiceToRows', () => {
       observed_time: null,
       delay_minutes: 0,
       rtt_uid: 'gb-nr:L01500:2026-07-31',
+      cancel_reason: 'TB',
+      delay_reason: null,
     }]);
   });
 
@@ -45,6 +47,8 @@ describe('mapRttServiceToRows', () => {
       observed_time: '2026-07-31T07:23:12.000Z',
       delay_minutes: 5,
       rtt_uid: 'gb-nr:L01525:2026-07-31',
+      cancel_reason: null,
+      delay_reason: null,
     }]);
   });
 
@@ -76,6 +80,8 @@ describe('mapRttServiceToRows', () => {
       observed_time: '2026-07-31T07:58:00.000Z',
       delay_minutes: -2,
       rtt_uid: 'gb-nr:L01599:2026-07-31',
+      cancel_reason: null,
+      delay_reason: null,
     }]);
   });
 
@@ -90,6 +96,8 @@ describe('mapRttServiceToRows', () => {
       observed_time: null,
       delay_minutes: 0,
       rtt_uid: 'gb-nr:L01545:2026-07-31',
+      cancel_reason: null,
+      delay_reason: null,
     }]);
   });
 
@@ -120,6 +128,42 @@ describe('mapRttServiceToRows', () => {
     };
     const rows = mapRttServiceToRows(sleepService);
     expect(rows[0]?.peak_period).toBe('off_peak');
+  });
+
+  it('maps cancellation and lateness reason fields when available', () => {
+    const service = {
+      scheduleMetadata: { uniqueIdentity: 'gb-nr:L01500:2026-07-31' },
+      temporalData: {
+        arrival: {
+          scheduleAdvertised: '2026-07-31T07:04:00.000Z',
+          isCancelled: true,
+          cancellationReasonShortText: 'Signal Failure',
+          cancellationReasonCode: 'TG',
+          latenessReasonShortText: 'Speed Restriction',
+          latenessReasonCode: 'SR',
+        },
+      },
+    };
+    const rows = mapRttServiceToRows(service);
+    expect(rows[0]?.cancel_reason).toBe('Signal Failure');
+    expect(rows[0]?.delay_reason).toBe('Speed Restriction');
+  });
+
+  it('falls back to reason code when short text is missing', () => {
+    const service = {
+      scheduleMetadata: { uniqueIdentity: 'gb-nr:L01500:2026-07-31' },
+      temporalData: {
+        arrival: {
+          scheduleAdvertised: '2026-07-31T07:04:00.000Z',
+          isCancelled: true,
+          cancellationReasonCode: 'TG',
+          latenessReasonCode: 'SR',
+        },
+      },
+    };
+    const rows = mapRttServiceToRows(service);
+    expect(rows[0]?.cancel_reason).toBe('TG');
+    expect(rows[0]?.delay_reason).toBe('SR');
   });
 });
 
