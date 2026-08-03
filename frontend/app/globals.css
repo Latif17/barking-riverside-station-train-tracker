@@ -3,48 +3,30 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
-  --surface-1: #fcfcfb;
-  --page-plane: #f9f9f7;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #898781;
-  --gridline: #e1e0d9;
-  --axis: #c3c2b7;
-  --status-early: #3b82f6;
-  --status-on-time: #0ca30c;
-  --status-delayed: #fab219;
-  --status-cancelled: #d03b3b;
-  --series-trend: #2a78d6;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme='light'])) {
-    color-scheme: dark;
-    --surface-1: #1a1a19;
-    --page-plane: #0d0d0d;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #898781;
-    --gridline: #2c2c2a;
-    --axis: #383835;
-    --series-trend: #3987e5;
-  }
-}
-
-:root[data-theme='dark'] {
   color-scheme: dark;
-  --surface-1: #1a1a19;
-  --page-plane: #0d0d0d;
-  --text-primary: #ffffff;
-  --text-secondary: #c3c2b7;
-  --text-muted: #898781;
-  --gridline: #2c2c2a;
-  --axis: #383835;
-  --series-trend: #3987e5;
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #171717;
+  --bg-widget: rgba(23, 23, 23, 0.7);
+  --text-primary: #f5f5f5;
+  --text-secondary: #a3a3a3;
+  --border-color: #262626;
+
+  --status-early: #3b82f6;
+  --status-on-time: #16a34a;
+  --status-delayed: #d97706;
+  --status-cancelled: #dc2626;
+
+  /* Compatibility aliases for legacy variable names */
+  --page-plane: var(--bg-primary);
+  --surface-1: var(--bg-secondary);
+  --gridline: var(--border-color);
+  --axis: var(--border-color);
+  --text-muted: #737373;
+  --series-trend: #3b82f6;
 }
 
 body {
-  background: var(--page-plane);
+  background-color: var(--bg-primary);
   color: var(--text-primary);
 }
+
