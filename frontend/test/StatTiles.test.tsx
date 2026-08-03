@@ -3,15 +3,17 @@ import { render, screen } from '@testing-library/react';
 import { StatTiles } from '../components/StatTiles';
 
 describe('StatTiles', () => {
-  it('renders on-time, delayed, and cancelled percentages', () => {
+  it('renders early, on-time, delayed, and cancelled percentages', () => {
     render(
       <StatTiles
-        percentages={{ earlyPercent: 0, onTimePercent: 82.5, delayedPercent: 12.3, cancelledPercent: 5.2, total: 120 }}
+        percentages={{ earlyPercent: 4.8, onTimePercent: 77.7, delayedPercent: 12.3, cancelledPercent: 3.2, total: 120 }}
       />,
     );
-    expect(screen.getByText('83%')).toBeInTheDocument();
-    expect(screen.getByText('12%')).toBeInTheDocument();
     expect(screen.getByText('5%')).toBeInTheDocument();
+    expect(screen.getByText('78%')).toBeInTheDocument();
+    expect(screen.getByText('12%')).toBeInTheDocument();
+    expect(screen.getByText('3%')).toBeInTheDocument();
+    expect(screen.getByText('Early')).toBeInTheDocument();
     expect(screen.getByText('On time')).toBeInTheDocument();
     expect(screen.getByText('Delayed')).toBeInTheDocument();
     expect(screen.getByText('Cancelled')).toBeInTheDocument();

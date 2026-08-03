@@ -33,7 +33,8 @@ export function StatTiles({ percentages }: StatTilesProps) {
 
   return (
     <div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Tile label="Early" value={percentages.earlyPercent} colorVar="--status-early" />
         <Tile label="On time" value={percentages.onTimePercent} colorVar="--status-on-time" />
         <Tile label="Delayed" value={percentages.delayedPercent} colorVar="--status-delayed" />
         <Tile label="Cancelled" value={percentages.cancelledPercent} colorVar="--status-cancelled" />

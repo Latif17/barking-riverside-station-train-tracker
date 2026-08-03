@@ -6,18 +6,18 @@ import type { PeakComparisonRow } from '../lib/aggregate';
 const rows: PeakComparisonRow[] = [
   {
     peakPeriod: 'am_peak',
-    counts: { early: 0, onTime: 80, delayed: 15, cancelled: 5, pending: 0, total: 100 },
-    percentages: { earlyPercent: 0, onTimePercent: 80, delayedPercent: 15, cancelledPercent: 5, total: 100 },
+    counts: { early: 5, onTime: 75, delayed: 15, cancelled: 5, pending: 0, total: 100 },
+    percentages: { earlyPercent: 5, onTimePercent: 75, delayedPercent: 15, cancelledPercent: 5, total: 100 },
   },
   {
     peakPeriod: 'pm_peak',
-    counts: { early: 0, onTime: 70, delayed: 20, cancelled: 10, pending: 0, total: 100 },
-    percentages: { earlyPercent: 0, onTimePercent: 70, delayedPercent: 20, cancelledPercent: 10, total: 100 },
+    counts: { early: 10, onTime: 60, delayed: 20, cancelled: 10, pending: 0, total: 100 },
+    percentages: { earlyPercent: 10, onTimePercent: 60, delayedPercent: 20, cancelledPercent: 10, total: 100 },
   },
   {
     peakPeriod: 'off_peak',
-    counts: { early: 0, onTime: 90, delayed: 8, cancelled: 2, pending: 0, total: 100 },
-    percentages: { earlyPercent: 0, onTimePercent: 90, delayedPercent: 8, cancelledPercent: 2, total: 100 },
+    counts: { early: 2, onTime: 88, delayed: 8, cancelled: 2, pending: 0, total: 100 },
+    percentages: { earlyPercent: 2, onTimePercent: 88, delayedPercent: 8, cancelledPercent: 2, total: 100 },
   },
 ];
 
@@ -29,10 +29,10 @@ describe('PeakComparisonChart', () => {
     expect(screen.getByText('Off-peak')).toBeInTheDocument();
   });
 
-  it('renders an SVG with one rect per non-zero segment (9 total for 3 full bars)', () => {
+  it('renders an SVG with one rect per non-zero segment (12 total for 3 full bars)', () => {
     const { container } = render(<PeakComparisonChart rows={rows} />);
     const rects = container.querySelectorAll('svg rect[data-status]');
-    expect(rects).toHaveLength(9);
+    expect(rects).toHaveLength(12);
   });
 
   it('renders a legend identifying the four statuses', () => {
