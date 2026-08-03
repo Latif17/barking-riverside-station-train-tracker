@@ -98,7 +98,7 @@ export async function pollOnce(
       const rttTimeMs = new Date(bgvRow.scheduled_time).getTime();
       const scheduleShiftMinutes = Math.round((rttTimeMs - timeMs) / 60000);
       const rttDelay = bgvRow.delay_minutes ?? 0;
-      row.delay_minutes = Math.max(0, scheduleShiftMinutes + rttDelay);
+      row.delay_minutes = scheduleShiftMinutes + rttDelay;
 
       if (row.status === 'pending' && timeSinceScheduled >= 30 * 60 * 1000) {
         row.status = 'cancelled';

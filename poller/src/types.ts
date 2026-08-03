@@ -3,7 +3,7 @@
 import type { PeakPeriod } from './peakPeriod.js';
 export type { PeakPeriod };
 export type Direction = 'departing' | 'arriving';
-export type ServiceStatus = 'pending' | 'on_time' | 'delayed' | 'cancelled';
+export type ServiceStatus = 'pending' | 'on_time' | 'early' | 'delayed' | 'cancelled';
 
 export interface ScheduledServiceRow {
   id?: string;

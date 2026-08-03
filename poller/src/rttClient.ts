@@ -1,7 +1,7 @@
 // poller/src/rttClient.ts
 import { computePeakPeriod } from './peakPeriod.js';
 import { londonTimeToUtcIso } from './dateHelpers.js';
-import type { Direction, ScheduledServiceRow } from './types.js';
+import type { Direction, ScheduledServiceRow, ServiceStatus } from './types.js';
 import type { TokenProvider } from './rttAuth.js';
 
 export interface RttIndividualTemporalData {
@@ -59,14 +59,16 @@ export function mapRttServiceToRows(service: RttService): ScheduledServiceRow[] 
       new Date(scheduled_time),
     );
     const peak_period = computePeakPeriod(new Date(scheduled_time));
-    const delay_minutes = Math.max(0, block.realtimeAdvertisedLateness ?? 0);
+    const delay_minutes = block.realtimeAdvertisedLateness ?? 0;
 
-    let status: 'pending' | 'on_time' | 'delayed' | 'cancelled' = 'pending';
+    let status: ServiceStatus = 'pending';
 
     if (block.isCancelled) {
       status = 'cancelled';
     } else if (delay_minutes > 0) {
       status = 'delayed';
+    } else if (delay_minutes < 0) {
+      status = 'early';
     } else if (block.realtimeActual) {
       status = 'on_time';
     }

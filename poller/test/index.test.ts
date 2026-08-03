@@ -114,6 +114,41 @@ describe('pollOnce during sleep period', () => {
     expect(targetRow?.upstream_delay_minutes).toBe(3);
   });
 
+  it('correctly maps early trains with negative delay and early status in pollOnce', async () => {
+    vi.setSystemTime(new Date('2026-01-05T08:00:00Z'));
+
+    const serviceTime = '2026-01-05T08:19:00.000Z';
+
+    const bgvRows: ScheduledServiceRow[] = [
+      {
+        service_date: '2026-01-05',
+        direction: 'arriving',
+        scheduled_time: serviceTime,
+        peak_period: 'am_peak',
+        status: 'early',
+        observed_time: '2026-01-05T08:17:00.000Z',
+        delay_minutes: -2,
+        rtt_uid: 'W12345',
+      },
+    ];
+
+    fetchTodayRowsSpy.mockImplementation(async (baseUrl: string, tokenProvider: any, date: string, options: any) => {
+      if (options.code === 'gb-nr:BGV') return bgvRows;
+      return [];
+    });
+
+    await pollOnce(dummyConfig as any, {} as any, {} as any, {} as any);
+
+    expect(upsertScheduledServicesSpy).toHaveBeenCalled();
+    const upsertedRows: ScheduledServiceRow[] = upsertScheduledServicesSpy.mock.calls[0][1];
+    const targetRow = upsertedRows.find((r) => r.scheduled_time === serviceTime && r.direction === 'arriving');
+
+    expect(targetRow).toBeDefined();
+    expect(targetRow?.status).toBe('early');
+    expect(targetRow?.delay_minutes).toBe(-2);
+    expect(targetRow?.observed_time).toBe('2026-01-05T08:17:00.000Z');
+  });
+
   it('marks missing BGV or BKG services as cancelled and cancels ghost pending services older than 30 minutes', async () => {
     // 08:35 London time on 2026-01-05
     vi.setSystemTime(new Date('2026-01-05T08:35:00Z'));

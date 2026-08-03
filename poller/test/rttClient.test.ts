@@ -55,6 +55,30 @@ describe('mapRttServiceToRows', () => {
     expect(rows[0]?.delay_minutes).toBe(1);
   });
 
+  it('maps an early train correctly with negative delay and early status', () => {
+    const earlyService = {
+      scheduleMetadata: { uniqueIdentity: 'gb-nr:L01599:2026-07-31' },
+      temporalData: {
+        arrival: {
+          scheduleAdvertised: '2026-07-31T08:00:00.000Z',
+          realtimeActual: '2026-07-31T07:58:00.000Z',
+          realtimeAdvertisedLateness: -2,
+        },
+      },
+    };
+    const rows = mapRttServiceToRows(earlyService);
+    expect(rows).toEqual([{
+      service_date: '2026-07-31',
+      direction: 'arriving',
+      scheduled_time: '2026-07-31T08:00:00.000Z',
+      peak_period: computePeakPeriod(new Date('2026-07-31T08:00:00.000Z')),
+      status: 'early',
+      observed_time: '2026-07-31T07:58:00.000Z',
+      delay_minutes: -2,
+      rtt_uid: 'gb-nr:L01599:2026-07-31',
+    }]);
+  });
+
   it('maps a not-yet-run service as pending', () => {
     const rows = mapRttServiceToRows(pendingDeparture);
     expect(rows).toEqual([{
