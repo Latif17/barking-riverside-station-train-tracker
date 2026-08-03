@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fetchSummaryStats, fetchPeakComparison, fetchTrend, fetchRecentCancellations, fetchIncidents } from '../lib/queries';
+import { fetchSummaryStats, fetchPeakComparison, fetchTrend, fetchRecentCancellations, fetchIncidents, fetchExecutiveStats } from '../lib/queries';
 
 // fetchSummaryStats/fetchPeakComparison/fetchTrend all call select().gte().lte()
 // with no .eq() in the chain - this mock matches exactly that shape.
@@ -153,4 +153,50 @@ describe('fetchRecentCancellations', () => {
     expect(limit).toHaveBeenCalledWith(20);
   });
 });
+
+describe('fetchExecutiveStats', () => {
+  it('queries required columns for executive stats and aggregates reasons, origins, directions', async () => {
+    const rows = [
+      {
+        status: 'cancelled',
+        direction: 'arriving',
+        delay_minutes: null,
+        upstream_delay_minutes: null,
+        cancel_reason: 'Signal failure',
+        delay_reason: null,
+      },
+      {
+        status: 'delayed',
+        direction: 'departing',
+        delay_minutes: 10,
+        upstream_delay_minutes: 5,
+        cancel_reason: null,
+        delay_reason: 'Congestion',
+      },
+    ];
+    const { client, from, select, gte, lte } = makeRangeQueryClient({ data: rows });
+    const result = await fetchExecutiveStats(client, { from: '2026-07-01', to: '2026-07-31' });
+
+    expect(from).toHaveBeenCalledWith('scheduled_services');
+    expect(select).toHaveBeenCalledWith('status, direction, delay_minutes, upstream_delay_minutes, cancel_reason, delay_reason');
+    expect(gte).toHaveBeenCalledWith('service_date', '2026-07-01');
+    expect(lte).toHaveBeenCalledWith('service_date', '2026-07-31');
+    expect(result).toEqual({
+      reasons: [
+        { reason: 'Signal failure', count: 1 },
+        { reason: 'Congestion', count: 1 },
+      ],
+      origins: { upstream: 1, turnaround: 0 },
+      directions: { arriving: 1, departing: 1 },
+    });
+  });
+
+  it('throws a descriptive error when Supabase returns an error', async () => {
+    const { client } = makeRangeQueryClient({ error: { message: 'db error' } });
+    await expect(fetchExecutiveStats(client, { from: '2026-07-01', to: '2026-07-31' })).rejects.toThrow(
+      /fetchExecutiveStats failed: db error/,
+    );
+  });
+});
+
 

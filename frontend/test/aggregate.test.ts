@@ -4,6 +4,9 @@ import {
   toPercentages,
   aggregateByPeakPeriod,
   aggregateTrendByDate,
+  aggregateFailureReasons,
+  aggregateDelayOrigins,
+  aggregateFailuresByDirection,
 } from '../lib/aggregate';
 
 describe('aggregateStatusCounts', () => {
@@ -109,3 +112,52 @@ describe('aggregateTrendByDate', () => {
     expect(aggregateTrendByDate([])).toEqual([]);
   });
 });
+
+describe('aggregateFailureReasons', () => {
+  it('counts failure reasons and sorts by count descending', () => {
+    const rows = [
+      { cancel_reason: 'Signal failure', delay_reason: null },
+      { cancel_reason: null, delay_reason: 'Congestion' },
+      { cancel_reason: 'Signal failure', delay_reason: null },
+      { cancel_reason: null, delay_reason: null },
+    ];
+    expect(aggregateFailureReasons(rows)).toEqual([
+      { reason: 'Signal failure', count: 2 },
+      { reason: 'Congestion', count: 1 },
+    ]);
+  });
+
+  it('prefers cancel_reason over delay_reason if both present', () => {
+    const rows = [
+      { cancel_reason: 'Track defect', delay_reason: 'Minor delay' },
+    ];
+    expect(aggregateFailureReasons(rows)).toEqual([
+      { reason: 'Track defect', count: 1 },
+    ]);
+  });
+});
+
+describe('aggregateDelayOrigins', () => {
+  it('classifies delayed rows as upstream if upstream_delay_minutes > 0, else turnaround', () => {
+    const rows = [
+      { status: 'delayed', delay_minutes: 10, upstream_delay_minutes: 5 },
+      { status: 'delayed', delay_minutes: 8, upstream_delay_minutes: 0 },
+      { status: 'delayed', delay_minutes: 4, upstream_delay_minutes: null },
+      { status: 'on_time', delay_minutes: 0, upstream_delay_minutes: 0 },
+    ];
+    expect(aggregateDelayOrigins(rows)).toEqual({ upstream: 1, turnaround: 2 });
+  });
+});
+
+describe('aggregateFailuresByDirection', () => {
+  it('counts arriving and departing failures (cancelled or delayed)', () => {
+    const rows = [
+      { status: 'cancelled', direction: 'arriving' },
+      { status: 'delayed', direction: 'arriving' },
+      { status: 'delayed', direction: 'departing' },
+      { status: 'on_time', direction: 'arriving' },
+    ];
+    expect(aggregateFailuresByDirection(rows)).toEqual({ arriving: 2, departing: 1 });
+  });
+});
+

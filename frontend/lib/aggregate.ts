@@ -87,3 +87,57 @@ export function aggregateTrendByDate(rows: { service_date: string; status: strin
       return { date, cancellationRatePercent, total: resolved };
     });
 }
+
+export interface FailureReasonCount {
+  reason: string;
+  count: number;
+}
+
+export function aggregateFailureReasons(rows: { cancel_reason: string | null; delay_reason: string | null }[]): FailureReasonCount[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const reason = row.cancel_reason || row.delay_reason;
+    if (reason) {
+      counts.set(reason, (counts.get(reason) || 0) + 1);
+    }
+  }
+  return Array.from(counts.entries())
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export interface DelayOrigins {
+  upstream: number;
+  turnaround: number;
+}
+
+export function aggregateDelayOrigins(rows: { delay_minutes: number | null; upstream_delay_minutes: number | null; status: string }[]): DelayOrigins {
+  let upstream = 0;
+  let turnaround = 0;
+  for (const row of rows) {
+    if (row.status === 'delayed') {
+      const u = row.upstream_delay_minutes || 0;
+      if (u > 0) upstream++;
+      else turnaround++;
+    }
+  }
+  return { upstream, turnaround };
+}
+
+export interface FailuresByDirection {
+  arriving: number;
+  departing: number;
+}
+
+export function aggregateFailuresByDirection(rows: { direction: string; status: string }[]): FailuresByDirection {
+  let arriving = 0;
+  let departing = 0;
+  for (const row of rows) {
+    if (row.status === 'cancelled' || row.status === 'delayed') {
+      if (row.direction === 'arriving') arriving++;
+      if (row.direction === 'departing') departing++;
+    }
+  }
+  return { arriving, departing };
+}
+

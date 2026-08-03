@@ -4,9 +4,15 @@ import {
   toPercentages,
   aggregateByPeakPeriod,
   aggregateTrendByDate,
+  aggregateFailureReasons,
+  aggregateDelayOrigins,
+  aggregateFailuresByDirection,
   type StatusPercentages,
   type PeakComparisonRow,
   type TrendPoint,
+  type FailureReasonCount,
+  type DelayOrigins,
+  type FailuresByDirection,
 } from './aggregate';
 import type { DateRange } from './dateRange';
 import type { Direction, Incident } from './types';
@@ -89,3 +95,29 @@ export async function fetchRecentCancellations(
   if (error) throw new Error(`fetchRecentCancellations failed: ${error.message}`);
   return (data ?? []) as RecentCancellation[];
 }
+
+export type { FailureReasonCount, DelayOrigins, FailuresByDirection };
+
+export interface ExecutiveStats {
+  reasons: FailureReasonCount[];
+  origins: DelayOrigins;
+  directions: FailuresByDirection;
+}
+
+export async function fetchExecutiveStats(client: SupabaseClient, range: DateRange): Promise<ExecutiveStats> {
+  const { data, error } = await client
+    .from('scheduled_services')
+    .select('status, direction, delay_minutes, upstream_delay_minutes, cancel_reason, delay_reason')
+    .gte('service_date', range.from)
+    .lte('service_date', range.to);
+
+  if (error) throw new Error(`fetchExecutiveStats failed: ${error.message}`);
+
+  const rows = data ?? [];
+  return {
+    reasons: aggregateFailureReasons(rows),
+    origins: aggregateDelayOrigins(rows),
+    directions: aggregateFailuresByDirection(rows),
+  };
+}
+
