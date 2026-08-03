@@ -1,10 +1,8 @@
-// poller/src/index.ts
 import { loadConfig } from './config.js';
 import { createSupabaseClient } from './supabaseClient.js';
-import { fetchAllRowsForDate, fetchPendingRows, upsertScheduledServices, deleteScheduledServices } from './repository.js';
+import { fetchAllRowsForDate, upsertScheduledServices } from './repository.js';
 import { createTokenProvider } from './rttAuth.js';
 import { fetchTodayRows } from './rttClient.js';
-import { applyForceResolveFallback, dedupeByScheduledTime } from './forceResolve.js';
 import { todayLondon } from './dateHelpers.js';
 import { computePeakPeriod, getPollingState } from './peakPeriod.js';
 import { getScheduledServicesForDate } from './schedule.js';
@@ -51,20 +49,65 @@ export async function pollOnce(
 
   const expectedRows = getScheduledServicesForDate(serviceDate);
   const nowMs = Date.now();
+  const claimedRttUids = new Set<string>();
+  const rowsToUpsert: typeof expectedRows = [];
 
-  const freshRows = expectedRows.map((row) => {
+  for (const row of expectedRows) {
     const timeMs = new Date(row.scheduled_time).getTime();
-    const bgvRow = bgvMap.get(`${timeMs}|${row.direction}`);
     const timeSinceScheduled = nowMs - timeMs;
+    const WINDOW_MS = 6 * 60 * 1000; // +/- 6 minutes
+
+    const dbRow = dbRowsMap.get(`${timeMs}|${row.direction}`);
+
+    // Find all trains in the RTT feed that fall within the fuzzy window
+    const candidates = bgvRows.filter((r) => {
+      if (r.direction !== row.direction) return false;
+      if (r.rtt_uid && claimedRttUids.has(r.rtt_uid)) return false;
+      const rTimeMs = new Date(r.scheduled_time).getTime();
+      return Math.abs(rTimeMs - timeMs) <= WINDOW_MS;
+    });
+
+    let bgvRow: typeof bgvRows[0] | undefined = undefined;
     
-    const rttUid = bgvRow?.rtt_uid ?? dbRowsMap.get(`${timeMs}|${row.direction}`)?.rtt_uid;
+    if (candidates.length > 0) {
+      const nonCancelled = candidates.filter((r) => r.status !== 'cancelled');
+      const groupToUse = nonCancelled.length > 0 ? nonCancelled : candidates;
+      
+      bgvRow = groupToUse.reduce((prev, curr) => {
+        const prevDiff = Math.abs(new Date(prev.scheduled_time).getTime() - timeMs);
+        const currDiff = Math.abs(new Date(curr.scheduled_time).getTime() - timeMs);
+        if (currDiff < prevDiff) return curr;
+        if (currDiff > prevDiff) return prev;
+        return curr; // prefer the latter one if tied
+      });
+    }
+
+    if (bgvRow && bgvRow.rtt_uid) {
+      claimedRttUids.add(bgvRow.rtt_uid);
+    }
+
+    const rttUid = bgvRow?.rtt_uid ?? dbRow?.rtt_uid;
     const bkgRow = rttUid ? bkgMap.get(rttUid) : undefined;
 
     if (bgvRow) {
       row.status = bgvRow.status;
       row.observed_time = bgvRow.observed_time;
-      row.delay_minutes = bgvRow.delay_minutes;
       row.rtt_uid = bgvRow.rtt_uid;
+
+      // Adjust delay_minutes to account for the shift from the expected static schedule
+      const rttTimeMs = new Date(bgvRow.scheduled_time).getTime();
+      const scheduleShiftMinutes = Math.round((rttTimeMs - timeMs) / 60000);
+      const rttDelay = bgvRow.delay_minutes ?? 0;
+      row.delay_minutes = Math.max(0, scheduleShiftMinutes + rttDelay);
+
+      if (row.status === 'pending' && timeSinceScheduled >= 30 * 60 * 1000) {
+        row.status = 'cancelled';
+      }
+    } else if (dbRow) {
+      row.status = dbRow.status;
+      row.observed_time = dbRow.observed_time;
+      row.delay_minutes = dbRow.delay_minutes;
+      row.rtt_uid = dbRow.rtt_uid;
 
       if (row.status === 'pending' && timeSinceScheduled >= 30 * 60 * 1000) {
         row.status = 'cancelled';
@@ -84,34 +127,50 @@ export async function pollOnce(
         if (row.upstream_status === 'pending' && upstreamTimeSinceScheduled >= 30 * 60 * 1000) {
           row.upstream_status = 'cancelled';
         }
+      } else if (dbRow?.upstream_status) {
+        row.upstream_status = dbRow.upstream_status;
+        row.upstream_observed_time = dbRow.upstream_observed_time;
+        row.upstream_delay_minutes = dbRow.upstream_delay_minutes;
+
+        if (row.upstream_status === 'pending' && timeSinceScheduled >= 30 * 60 * 1000) {
+          row.upstream_status = 'cancelled';
+        }
       } else {
         row.upstream_status = 'cancelled';
       }
     }
 
-    return row;
-  });
+    let changed = false;
+    if (!dbRow) {
+      changed = true;
+    } else {
+      if (
+        row.status !== dbRow.status ||
+        row.observed_time !== dbRow.observed_time ||
+        row.delay_minutes !== dbRow.delay_minutes ||
+        row.rtt_uid !== dbRow.rtt_uid ||
+        row.upstream_status !== dbRow.upstream_status ||
+        row.upstream_observed_time !== dbRow.upstream_observed_time ||
+        row.upstream_delay_minutes !== dbRow.upstream_delay_minutes
+      ) {
+        changed = true;
+      }
+    }
 
-  const pendingRows = dbRows.filter((r) => r.status === 'pending');
-  const forceResolvedRows = applyForceResolveFallback(pendingRows, freshRows, now);
+    if (changed) {
+      rowsToUpsert.push(row);
+    }
+  }
 
-  const merged = [...dbRows, ...forceResolvedRows, ...freshRows];
-
-  const { keep: rowsToUpsert, drop: rowsToDelete } = dedupeByScheduledTime(merged);
-
-  if (rowsToUpsert.length === 0 && rowsToDelete.length === 0) return;
-
-  const uidsToDelete = rowsToDelete.map((r) => r.rtt_uid).filter((uid): uid is string => uid !== null);
+  if (rowsToUpsert.length === 0) return;
 
   if (DRY_RUN) {
-    console.log(`[dry-run] would upsert ${rowsToUpsert.length} rows:`, rowsToUpsert);
-    console.log(`[dry-run] would delete ${uidsToDelete.length} rows:`, uidsToDelete);
+    console.log(`[dry-run] would upsert ${rowsToUpsert.length} rows`);
     return;
   }
 
-  await deleteScheduledServices(client, serviceDate, uidsToDelete);
   await upsertScheduledServices(client, rowsToUpsert);
-  console.log(`Upserted ${rowsToUpsert.length} rows, Deleted ${uidsToDelete.length} obsolete rows`);
+  console.log(`Upserted ${rowsToUpsert.length} changed rows`);
 }
 
 export function getPollInterval(

@@ -2,19 +2,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ScheduledServiceRow } from './types.js';
 
-export async function fetchPendingRows(
-  client: SupabaseClient,
-  serviceDate: string,
-): Promise<ScheduledServiceRow[]> {
-  const { data, error } = await client
-    .from('scheduled_services')
-    .select('*')
-    .eq('service_date', serviceDate)
-    .eq('status', 'pending');
 
-  if (error) throw new Error(`fetchPendingRows failed: ${error.message}`);
-  return (data ?? []) as ScheduledServiceRow[];
-}
 
 export async function fetchAllRowsForDate(
   client: SupabaseClient,
@@ -29,21 +17,7 @@ export async function fetchAllRowsForDate(
   return (data ?? []) as ScheduledServiceRow[];
 }
 
-export async function deleteScheduledServices(
-  client: SupabaseClient,
-  serviceDate: string,
-  rttUids: string[],
-): Promise<void> {
-  if (rttUids.length === 0) return;
 
-  const { error } = await client
-    .from('scheduled_services')
-    .delete()
-    .eq('service_date', serviceDate)
-    .in('rtt_uid', rttUids);
-
-  if (error) throw new Error(`deleteScheduledServices failed: ${error.message}`);
-}
 
 export async function upsertScheduledServices(
   client: SupabaseClient,

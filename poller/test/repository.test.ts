@@ -1,6 +1,6 @@
 // poller/test/repository.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import { fetchPendingRows, upsertScheduledServices } from '../src/repository.js';
+import { upsertScheduledServices } from '../src/repository.js';
 import type { ScheduledServiceRow } from '../src/types.js';
 
 function makeFakeClient(overrides: Record<string, any> = {}) {
@@ -12,26 +12,7 @@ function makeFakeClient(overrides: Record<string, any> = {}) {
   return { client: { from } as any, from, select, eq1, eq2, upsert };
 }
 
-describe('fetchPendingRows', () => {
-  it('queries scheduled_services filtered by service_date and status', async () => {
-    const { client, from, eq1, eq2 } = makeFakeClient({ selectData: [{ id: 'a' }] });
-    const rows = await fetchPendingRows(client, '2026-07-31');
 
-    expect(from).toHaveBeenCalledWith('scheduled_services');
-    expect(eq1).toHaveBeenCalledWith('service_date', '2026-07-31');
-    expect(eq2).toHaveBeenCalledWith('status', 'pending');
-    expect(rows).toEqual([{ id: 'a' }]);
-  });
-
-  it('throws if the query returns an error', async () => {
-    const eq2 = vi.fn().mockResolvedValue({ data: null, error: { message: 'boom' } });
-    const eq1 = vi.fn().mockReturnValue({ eq: eq2 });
-    const select = vi.fn().mockReturnValue({ eq: eq1 });
-    const client = { from: vi.fn().mockReturnValue({ select }) } as any;
-
-    await expect(fetchPendingRows(client, '2026-07-31')).rejects.toThrow(/boom/);
-  });
-});
 
 describe('upsertScheduledServices', () => {
   it('does nothing for an empty array', async () => {

@@ -9,7 +9,6 @@ describe('pollOnce during sleep period', () => {
   let fetchTodayRowsSpy: any;
   let fetchAllRowsForDateSpy: any;
   let upsertScheduledServicesSpy: any;
-  let deleteScheduledServicesSpy: any;
 
   const dummyConfig = {
     supabaseUrl: 'http://localhost',
@@ -29,7 +28,6 @@ describe('pollOnce during sleep period', () => {
     fetchTodayRowsSpy = vi.spyOn(rttClient, 'fetchTodayRows').mockResolvedValue([]);
     fetchAllRowsForDateSpy = vi.spyOn(repository, 'fetchAllRowsForDate').mockResolvedValue([]);
     upsertScheduledServicesSpy = vi.spyOn(repository, 'upsertScheduledServices').mockResolvedValue();
-    deleteScheduledServicesSpy = vi.spyOn(repository, 'deleteScheduledServices').mockResolvedValue();
   });
 
   afterEach(() => {
