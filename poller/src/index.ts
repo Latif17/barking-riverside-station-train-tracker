@@ -4,7 +4,7 @@ import { createSupabaseClient } from './supabaseClient.js';
 import { fetchAllRowsForDate, fetchPendingRows, upsertScheduledServices, deleteScheduledServices } from './repository.js';
 import { createTokenProvider } from './rttAuth.js';
 import { fetchTodayRows } from './rttClient.js';
-import { applyForceResolveFallback, dedupeRowsByNaturalKey, dedupeByScheduledTime } from './forceResolve.js';
+import { applyForceResolveFallback, dedupeByScheduledTime } from './forceResolve.js';
 import { todayLondon } from './dateHelpers.js';
 import { computePeakPeriod, getPollingState } from './peakPeriod.js';
 import { getScheduledServicesForDate } from './schedule.js';
@@ -95,7 +95,7 @@ export async function pollOnce(
   const pendingRows = dbRows.filter((r) => r.status === 'pending');
   const forceResolvedRows = applyForceResolveFallback(pendingRows, freshRows, now);
 
-  const merged = dedupeRowsByNaturalKey([...dbRows, ...forceResolvedRows, ...freshRows]);
+  const merged = [...dbRows, ...forceResolvedRows, ...freshRows];
 
   const { keep: rowsToUpsert, drop: rowsToDelete } = dedupeByScheduledTime(merged);
 

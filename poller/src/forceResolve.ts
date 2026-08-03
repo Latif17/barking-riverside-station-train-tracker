@@ -2,8 +2,8 @@ import type { ScheduledServiceRow } from './types.js';
 
 const FORCE_RESOLVE_MS = 30 * 60 * 1000;
 
-function rowKey(row: Pick<ScheduledServiceRow, 'direction' | 'rtt_uid'>): string {
-  return `${row.direction}|${row.rtt_uid}`;
+function rowKey(row: Pick<ScheduledServiceRow, 'direction' | 'scheduled_time'>): string {
+  return `${row.direction}|${new Date(row.scheduled_time).getTime()}`;
 }
 
 export function applyForceResolveFallback(
@@ -24,14 +24,6 @@ export function applyForceResolveFallback(
   }
 
   return resolved;
-}
-
-export function dedupeRowsByNaturalKey(rows: ScheduledServiceRow[]): ScheduledServiceRow[] {
-  const byKey = new Map<string, ScheduledServiceRow>();
-  for (const row of rows) {
-    byKey.set(`${row.service_date}|${row.direction}|${row.rtt_uid}`, row);
-  }
-  return [...byKey.values()];
 }
 
 export function dedupeByScheduledTime(rows: ScheduledServiceRow[]): {
