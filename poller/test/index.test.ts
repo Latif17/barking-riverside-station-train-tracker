@@ -79,7 +79,7 @@ describe('pollOnce during sleep period', () => {
     const bkgRows: ScheduledServiceRow[] = [
       {
         service_date: '2026-01-05',
-        direction: 'arriving', // Direction doesn't matter for bkg map lookup anymore as it uses rtt_uid
+        direction: 'departing',
         scheduled_time: '2026-01-05T08:13:00.000Z', // Different scheduled time for BKG
         peak_period: 'am_peak',
         status: 'delayed',

@@ -37,7 +37,7 @@ export async function pollOnce(
 
   const bkgMap = new Map<string, typeof bkgRows[0]>();
   for (const r of bkgRows) {
-    if (r.rtt_uid) {
+    if (r.rtt_uid && r.direction === 'departing') {
       bkgMap.set(r.rtt_uid, r);
     }
   }
@@ -68,6 +68,7 @@ export async function pollOnce(
       }
     } else {
       row.status = 'cancelled';
+      row.rtt_uid = rttUid ?? null;
     }
 
     if (row.direction === 'arriving') {
