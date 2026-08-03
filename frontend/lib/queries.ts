@@ -70,7 +70,7 @@ export async function fetchIncidents(
   return (data ?? []) as Incident[];
 }
 
-export type RecentCancellation = Incident;
+export type RecentCancellation = Pick<Incident, 'service_date' | 'scheduled_time' | 'direction'>;
 
 export async function fetchRecentCancellations(
   client: SupabaseClient,
