@@ -66,7 +66,7 @@ describe('pollOnce during sleep period', () => {
     const bgvRows: ScheduledServiceRow[] = [
       {
         service_date: '2026-01-05',
-        direction: 'departing',
+        direction: 'arriving',
         scheduled_time: serviceTime,
         peak_period: 'am_peak',
         status: 'on_time',
@@ -79,7 +79,7 @@ describe('pollOnce during sleep period', () => {
     const bkgRows: ScheduledServiceRow[] = [
       {
         service_date: '2026-01-05',
-        direction: 'departing', // Direction doesn't matter for bkg map lookup anymore as it uses rtt_uid
+        direction: 'arriving', // Direction doesn't matter for bkg map lookup anymore as it uses rtt_uid
         scheduled_time: '2026-01-05T08:13:00.000Z', // Different scheduled time for BKG
         peak_period: 'am_peak',
         status: 'delayed',
@@ -107,7 +107,7 @@ describe('pollOnce during sleep period', () => {
 
     expect(upsertScheduledServicesSpy).toHaveBeenCalled();
     const upsertedRows: ScheduledServiceRow[] = upsertScheduledServicesSpy.mock.calls[0][1];
-    const targetRow = upsertedRows.find((r) => r.scheduled_time === serviceTime && r.direction === 'departing');
+    const targetRow = upsertedRows.find((r) => r.scheduled_time === serviceTime && r.direction === 'arriving');
 
     expect(targetRow).toBeDefined();
     expect(targetRow?.status).toBe('on_time');
@@ -160,12 +160,12 @@ describe('pollOnce during sleep period', () => {
     const oldRow = upsertedRows.find((r) => r.scheduled_time === bgvOldPendingTime && r.direction === 'departing');
     expect(oldRow).toBeDefined();
     expect(oldRow?.status).toBe('cancelled'); // Cancelled due to ghost threshold >= 30m
-    expect(oldRow?.upstream_status).toBe('cancelled'); // Missing from BKG
+    expect(oldRow?.upstream_status).toBeUndefined(); // Missing from BKG
 
     const recentRow = upsertedRows.find((r) => r.scheduled_time === bgvRecentPendingTime && r.direction === 'departing');
     expect(recentRow).toBeDefined();
     expect(recentRow?.status).toBe('pending'); // Still pending since < 30m
-    expect(recentRow?.upstream_status).toBe('cancelled'); // Missing from BKG
+    expect(recentRow?.upstream_status).toBeUndefined(); // Missing from BKG
   });
 });
 

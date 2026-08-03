@@ -70,16 +70,19 @@ export async function pollOnce(
       row.status = 'cancelled';
     }
 
-    if (bkgRow) {
-      row.upstream_status = bkgRow.status;
-      row.upstream_observed_time = bkgRow.observed_time;
-      row.upstream_delay_minutes = bkgRow.delay_minutes;
+    if (row.direction === 'arriving') {
+      if (bkgRow) {
+        row.upstream_status = bkgRow.status;
+        row.upstream_observed_time = bkgRow.observed_time;
+        row.upstream_delay_minutes = bkgRow.delay_minutes;
 
-      if (row.upstream_status === 'pending' && timeSinceScheduled >= 30 * 60 * 1000) {
+        const upstreamTimeSinceScheduled = nowMs - new Date(bkgRow.scheduled_time).getTime();
+        if (row.upstream_status === 'pending' && upstreamTimeSinceScheduled >= 30 * 60 * 1000) {
+          row.upstream_status = 'cancelled';
+        }
+      } else {
         row.upstream_status = 'cancelled';
       }
-    } else {
-      row.upstream_status = 'cancelled';
     }
 
     return row;
