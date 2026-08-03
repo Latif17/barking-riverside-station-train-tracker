@@ -9,6 +9,14 @@ vi.mock('@/lib/supabaseClient', () => ({
         gte: () => ({
           lte: () => Promise.resolve({ data: [], error: null }),
         }),
+        // fetchIncidents: select().in().gte().lte().order().limit()
+        in: () => ({
+          gte: () => ({
+            lte: () => ({
+              order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }),
+            }),
+          }),
+        }),
         // fetchRecentCancellations: select().eq().gte().lte().order().limit()
         eq: () => ({
           gte: () => ({

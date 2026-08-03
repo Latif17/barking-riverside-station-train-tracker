@@ -4,13 +4,13 @@ import { useEffect, useState } from 'react';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 import { computeDateRange } from '@/lib/dateRange';
 import { loadDashboardConfig, saveDashboardConfig, type DashboardConfig } from '@/lib/dashboardConfig';
-import { fetchSummaryStats, fetchPeakComparison, fetchTrend, fetchRecentCancellations } from '@/lib/queries';
+import { fetchSummaryStats, fetchPeakComparison, fetchTrend, fetchIncidents } from '@/lib/queries';
 import type { StatusPercentages, PeakComparisonRow, TrendPoint } from '@/lib/aggregate';
-import type { RecentCancellation } from '@/lib/queries';
+import type { Incident } from '@/lib/queries';
 import { StatTiles } from '@/components/StatTiles';
 import { PeakComparisonChart } from '@/components/PeakComparisonChart';
 import { TrendChart } from '@/components/TrendChart';
-import { RecentCancellationsTable } from '@/components/RecentCancellationsTable';
+import { IncidentLogTable } from '@/components/IncidentLogTable';
 import { DateRangeSelector } from '@/components/DateRangeSelector';
 import { WidgetToggles } from '@/components/WidgetToggles';
 
@@ -18,7 +18,7 @@ interface DashboardData {
   stats: StatusPercentages;
   peakComparison: PeakComparisonRow[];
   trend: TrendPoint[];
-  recentCancellations: RecentCancellation[];
+  incidents: Incident[];
 }
 
 export default function DashboardPage() {
@@ -40,14 +40,14 @@ export default function DashboardPage() {
       try {
         const client = getSupabaseClient();
         const range = computeDateRange(config!.dateRangeDays);
-        const [stats, peakComparison, trend, recentCancellations] = await Promise.all([
+        const [stats, peakComparison, trend, incidents] = await Promise.all([
           fetchSummaryStats(client, range),
           fetchPeakComparison(client, range),
           fetchTrend(client, range),
-          fetchRecentCancellations(client, range),
+          fetchIncidents(client, range),
         ]);
         if (!cancelled) {
-          setData({ stats, peakComparison, trend, recentCancellations });
+          setData({ stats, peakComparison, trend, incidents });
         }
       } catch (err) {
         if (!cancelled) {
@@ -132,8 +132,8 @@ export default function DashboardPage() {
 
           {config.visibleWidgets.recentCancellations && (
             <section>
-              <h2 className="mb-2 text-lg font-medium text-[var(--text-primary)]">Recent cancellations</h2>
-              <RecentCancellationsTable rows={data.recentCancellations} />
+              <h2 className="mb-2 text-lg font-medium text-[var(--text-primary)]">Incident log</h2>
+              <IncidentLogTable rows={data.incidents} />
             </section>
           )}
         </div>
