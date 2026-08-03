@@ -32,7 +32,8 @@ export async function pollOnce(
 
   const bgvMap = new Map<string, typeof bgvRows[0]>();
   for (const r of bgvRows) {
-    bgvMap.set(`${r.scheduled_time}|${r.direction}`, r);
+    const timeMs = new Date(r.scheduled_time).getTime();
+    bgvMap.set(`${timeMs}|${r.direction}`, r);
   }
 
   const bkgMap = new Map<string, typeof bkgRows[0]>();
@@ -44,17 +45,19 @@ export async function pollOnce(
 
   const dbRowsMap = new Map<string, typeof dbRows[0]>();
   for (const r of dbRows) {
-    dbRowsMap.set(`${r.scheduled_time}|${r.direction}`, r);
+    const timeMs = new Date(r.scheduled_time).getTime();
+    dbRowsMap.set(`${timeMs}|${r.direction}`, r);
   }
 
   const expectedRows = getScheduledServicesForDate(serviceDate);
   const nowMs = Date.now();
 
   const freshRows = expectedRows.map((row) => {
-    const bgvRow = bgvMap.get(`${row.scheduled_time}|${row.direction}`);
-    const timeSinceScheduled = nowMs - new Date(row.scheduled_time).getTime();
+    const timeMs = new Date(row.scheduled_time).getTime();
+    const bgvRow = bgvMap.get(`${timeMs}|${row.direction}`);
+    const timeSinceScheduled = nowMs - timeMs;
     
-    const rttUid = bgvRow?.rtt_uid ?? dbRowsMap.get(`${row.scheduled_time}|${row.direction}`)?.rtt_uid;
+    const rttUid = bgvRow?.rtt_uid ?? dbRowsMap.get(`${timeMs}|${row.direction}`)?.rtt_uid;
     const bkgRow = rttUid ? bkgMap.get(rttUid) : undefined;
 
     if (bgvRow) {

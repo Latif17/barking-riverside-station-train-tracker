@@ -40,7 +40,8 @@ export function dedupeByScheduledTime(rows: ScheduledServiceRow[]): {
 } {
   const byTime = new Map<string, ScheduledServiceRow[]>();
   for (const row of rows) {
-    const key = `${row.service_date}|${row.direction}|${row.scheduled_time}`;
+    const timeMs = new Date(row.scheduled_time).getTime();
+    const key = `${row.service_date}|${row.direction}|${timeMs}`;
     const group = byTime.get(key) ?? [];
     group.push(row);
     byTime.set(key, group);
