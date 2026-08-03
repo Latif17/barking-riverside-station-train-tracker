@@ -43,7 +43,7 @@ export function PeakComparisonChart({ rows }: PeakComparisonChartProps) {
         height={CHART_HEIGHT + 24}
         viewBox={`0 0 ${chartWidth} ${CHART_HEIGHT + 24}`}
         role="img"
-        aria-label="On-time, delayed, and cancelled percentage by peak period"
+        aria-label="Early, on-time, delayed, and cancelled percentage by peak period"
       >
         <line
           x1={0}
@@ -83,7 +83,7 @@ export function PeakComparisonChart({ rows }: PeakComparisonChartProps) {
       </svg>
 
       <div className="mt-2 flex gap-4 text-xs text-[var(--text-secondary)]">
-        {(['onTime', 'delayed', 'cancelled'] as const).map((status) => (
+        {(['early', 'onTime', 'delayed', 'cancelled'] as const).map((status) => (
           <span key={status} className="flex items-center gap-1.5">
             <span
               className="inline-block h-2.5 w-2.5 rounded-full"

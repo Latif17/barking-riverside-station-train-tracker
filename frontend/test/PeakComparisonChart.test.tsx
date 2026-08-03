@@ -35,8 +35,9 @@ describe('PeakComparisonChart', () => {
     expect(rects).toHaveLength(9);
   });
 
-  it('renders a legend identifying the three statuses', () => {
+  it('renders a legend identifying the four statuses', () => {
     render(<PeakComparisonChart rows={rows} />);
+    expect(screen.getByText('Early')).toBeInTheDocument();
     expect(screen.getByText('On time')).toBeInTheDocument();
     expect(screen.getByText('Delayed')).toBeInTheDocument();
     expect(screen.getByText('Cancelled')).toBeInTheDocument();
