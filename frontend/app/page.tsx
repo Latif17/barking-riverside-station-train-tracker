@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 import { computeDateRange } from '@/lib/dateRange';
 import { loadDashboardConfig, saveDashboardConfig, type DashboardConfig } from '@/lib/dashboardConfig';
-import { fetchSummaryStats, fetchPeakComparison, fetchTrend, fetchIncidents } from '@/lib/queries';
+import { fetchSummaryStats, fetchPeakComparison, fetchTrend, fetchIncidents, fetchExecutiveStats } from '@/lib/queries';
 import type { StatusPercentages, PeakComparisonRow, TrendPoint } from '@/lib/aggregate';
-import type { Incident } from '@/lib/queries';
-import { StatTiles } from '@/components/StatTiles';
+import type { Incident, ExecutiveStats } from '@/lib/queries';
+import { ExecutiveKPIs } from '@/components/ExecutiveKPIs';
+import { FailureReasonsChart } from '@/components/FailureReasonsChart';
 import { PeakComparisonChart } from '@/components/PeakComparisonChart';
 import { TrendChart } from '@/components/TrendChart';
 import { IncidentLogTable } from '@/components/IncidentLogTable';
@@ -19,6 +20,7 @@ interface DashboardData {
   peakComparison: PeakComparisonRow[];
   trend: TrendPoint[];
   incidents: Incident[];
+  execStats: ExecutiveStats;
 }
 
 export default function DashboardPage() {
@@ -40,14 +42,15 @@ export default function DashboardPage() {
       try {
         const client = getSupabaseClient();
         const range = computeDateRange(config!.dateRangeDays);
-        const [stats, peakComparison, trend, incidents] = await Promise.all([
+        const [stats, peakComparison, trend, incidents, execStats] = await Promise.all([
           fetchSummaryStats(client, range),
           fetchPeakComparison(client, range),
           fetchTrend(client, range),
           fetchIncidents(client, range),
+          fetchExecutiveStats(client, range),
         ]);
         if (!cancelled) {
-          setData({ stats, peakComparison, trend, incidents });
+          setData({ stats, peakComparison, trend, incidents, execStats });
         }
       } catch (err) {
         if (!cancelled) {
@@ -111,8 +114,15 @@ export default function DashboardPage() {
         <div className="space-y-8">
           {config.visibleWidgets.statTiles && (
             <section>
-              <h2 className="mb-2 text-lg font-medium text-[var(--text-primary)]">Overview</h2>
-              <StatTiles percentages={data.stats} />
+              <h2 className="mb-2 text-lg font-medium text-[var(--text-primary)]">Executive KPIs</h2>
+              <ExecutiveKPIs percentages={data.stats} execStats={data.execStats} />
+            </section>
+          )}
+
+          {config.visibleWidgets.statTiles && data.execStats.reasons.length > 0 && (
+            <section>
+              <h2 className="mb-2 text-lg font-medium text-[var(--text-primary)]">Failure Reasons Breakdown</h2>
+              <FailureReasonsChart reasons={data.execStats.reasons} />
             </section>
           )}
 
