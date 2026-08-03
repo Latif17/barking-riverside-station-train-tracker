@@ -9,7 +9,9 @@ import {
   type TrendPoint,
 } from './aggregate';
 import type { DateRange } from './dateRange';
-import type { Direction } from './types';
+import type { Direction, Incident } from './types';
+
+export type { Incident };
 
 export async function fetchSummaryStats(
   client: SupabaseClient,
@@ -50,11 +52,25 @@ export async function fetchTrend(client: SupabaseClient, range: DateRange): Prom
   return aggregateTrendByDate(data ?? []);
 }
 
-export interface RecentCancellation {
-  service_date: string;
-  scheduled_time: string;
-  direction: Direction;
+export async function fetchIncidents(
+  client: SupabaseClient,
+  range: DateRange,
+  limit = 50,
+): Promise<Incident[]> {
+  const { data, error } = await client
+    .from('scheduled_services')
+    .select('service_date, scheduled_time, direction, status, delay_minutes, cancel_reason, delay_reason, upstream_delay_minutes')
+    .in('status', ['cancelled', 'delayed'])
+    .gte('service_date', range.from)
+    .lte('service_date', range.to)
+    .order('scheduled_time', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(`fetchIncidents failed: ${error.message}`);
+  return (data ?? []) as Incident[];
 }
+
+export type RecentCancellation = Incident;
 
 export async function fetchRecentCancellations(
   client: SupabaseClient,
