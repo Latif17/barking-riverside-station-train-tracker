@@ -39,4 +39,16 @@ describe('londonTimeToUtcIso', () => {
   it('handles the 12:00 boundary time used for RTT window splits', () => {
     expect(londonTimeToUtcIso('2026-07-29', '12:00')).toBe('2026-07-29T11:00:00.000Z');
   });
+
+  it('handles times before the DST spring forward transition correctly', () => {
+    // 2024-03-31 is spring forward (BST starts at 01:00 GMT -> 02:00 BST).
+    // 00:11 local time is still GMT.
+    expect(londonTimeToUtcIso('2024-03-31', '00:11')).toBe('2024-03-31T00:11:00.000Z');
+  });
+
+  it('handles times before the DST fall back transition correctly', () => {
+    // 2024-10-27 is fall back (GMT starts at 02:00 BST -> 01:00 GMT).
+    // 00:11 local time is still BST.
+    expect(londonTimeToUtcIso('2024-10-27', '00:11')).toBe('2024-10-26T23:11:00.000Z');
+  });
 });
