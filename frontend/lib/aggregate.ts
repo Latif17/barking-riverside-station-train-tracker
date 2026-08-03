@@ -1,6 +1,7 @@
 import type { PeakPeriod } from './types';
 
 export interface StatusCounts {
+  early: number;
   onTime: number;
   delayed: number;
   cancelled: number;
@@ -9,6 +10,7 @@ export interface StatusCounts {
 }
 
 export interface StatusPercentages {
+  earlyPercent: number;
   onTimePercent: number;
   delayedPercent: number;
   cancelledPercent: number;
@@ -16,10 +18,11 @@ export interface StatusPercentages {
 }
 
 export function aggregateStatusCounts(rows: { status: string }[]): StatusCounts {
-  const counts: StatusCounts = { onTime: 0, delayed: 0, cancelled: 0, pending: 0, total: 0 };
+  const counts: StatusCounts = { early: 0, onTime: 0, delayed: 0, cancelled: 0, pending: 0, total: 0 };
   for (const row of rows) {
     counts.total += 1;
-    if (row.status === 'on_time') counts.onTime += 1;
+    if (row.status === 'early') counts.early += 1;
+    else if (row.status === 'on_time') counts.onTime += 1;
     else if (row.status === 'delayed') counts.delayed += 1;
     else if (row.status === 'cancelled') counts.cancelled += 1;
     else counts.pending += 1;
@@ -28,13 +31,14 @@ export function aggregateStatusCounts(rows: { status: string }[]): StatusCounts 
 }
 
 export function toPercentages(counts: StatusCounts): StatusPercentages {
-  // Percentages are of RESOLVED services (on_time + delayed + cancelled).
+  // Percentages are of RESOLVED services (early + on_time + delayed + cancelled).
   // Pending services haven't happened yet, so they aren't a reliability outcome.
-  const resolved = counts.onTime + counts.delayed + counts.cancelled;
+  const resolved = counts.early + counts.onTime + counts.delayed + counts.cancelled;
   if (resolved === 0) {
-    return { onTimePercent: 0, delayedPercent: 0, cancelledPercent: 0, total: 0 };
+    return { earlyPercent: 0, onTimePercent: 0, delayedPercent: 0, cancelledPercent: 0, total: 0 };
   }
   return {
+    earlyPercent: (counts.early / resolved) * 100,
     onTimePercent: (counts.onTime / resolved) * 100,
     delayedPercent: (counts.delayed / resolved) * 100,
     cancelledPercent: (counts.cancelled / resolved) * 100,
@@ -78,7 +82,7 @@ export function aggregateTrendByDate(rows: { service_date: string; status: strin
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, dayRows]) => {
       const counts = aggregateStatusCounts(dayRows);
-      const resolved = counts.onTime + counts.delayed + counts.cancelled;
+      const resolved = counts.early + counts.onTime + counts.delayed + counts.cancelled;
       const cancellationRatePercent = resolved === 0 ? 0 : (counts.cancelled / resolved) * 100;
       return { date, cancellationRatePercent, total: resolved };
     });

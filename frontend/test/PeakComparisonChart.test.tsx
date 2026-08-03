@@ -6,18 +6,18 @@ import type { PeakComparisonRow } from '../lib/aggregate';
 const rows: PeakComparisonRow[] = [
   {
     peakPeriod: 'am_peak',
-    counts: { onTime: 80, delayed: 15, cancelled: 5, pending: 0, total: 100 },
-    percentages: { onTimePercent: 80, delayedPercent: 15, cancelledPercent: 5, total: 100 },
+    counts: { early: 0, onTime: 80, delayed: 15, cancelled: 5, pending: 0, total: 100 },
+    percentages: { earlyPercent: 0, onTimePercent: 80, delayedPercent: 15, cancelledPercent: 5, total: 100 },
   },
   {
     peakPeriod: 'pm_peak',
-    counts: { onTime: 70, delayed: 20, cancelled: 10, pending: 0, total: 100 },
-    percentages: { onTimePercent: 70, delayedPercent: 20, cancelledPercent: 10, total: 100 },
+    counts: { early: 0, onTime: 70, delayed: 20, cancelled: 10, pending: 0, total: 100 },
+    percentages: { earlyPercent: 0, onTimePercent: 70, delayedPercent: 20, cancelledPercent: 10, total: 100 },
   },
   {
     peakPeriod: 'off_peak',
-    counts: { onTime: 90, delayed: 8, cancelled: 2, pending: 0, total: 100 },
-    percentages: { onTimePercent: 90, delayedPercent: 8, cancelledPercent: 2, total: 100 },
+    counts: { early: 0, onTime: 90, delayed: 8, cancelled: 2, pending: 0, total: 100 },
+    percentages: { earlyPercent: 0, onTimePercent: 90, delayedPercent: 8, cancelledPercent: 2, total: 100 },
   },
 ];
 
@@ -45,7 +45,7 @@ describe('PeakComparisonChart', () => {
   it('shows a no-data message for a peak period with zero services', () => {
     const withEmpty = rows.map((r) =>
       r.peakPeriod === 'pm_peak'
-        ? { ...r, counts: { ...r.counts, total: 0 }, percentages: { onTimePercent: 0, delayedPercent: 0, cancelledPercent: 0, total: 0 } }
+        ? { ...r, counts: { ...r.counts, total: 0 }, percentages: { earlyPercent: 0, onTimePercent: 0, delayedPercent: 0, cancelledPercent: 0, total: 0 } }
         : r,
     );
     render(<PeakComparisonChart rows={withEmpty} />);

@@ -4,8 +4,8 @@ import { computeStackedBars, computeLineChart } from '../lib/chartGeometry';
 describe('computeStackedBars', () => {
   it('produces one bar per group, positioned left to right with the given gap', () => {
     const groups = [
-      { label: 'AM peak', percentages: { onTimePercent: 100, delayedPercent: 0, cancelledPercent: 0 } },
-      { label: 'PM peak', percentages: { onTimePercent: 100, delayedPercent: 0, cancelledPercent: 0 } },
+      { label: 'AM peak', percentages: { earlyPercent: 0, onTimePercent: 100, delayedPercent: 0, cancelledPercent: 0 } },
+      { label: 'PM peak', percentages: { earlyPercent: 0, onTimePercent: 100, delayedPercent: 0, cancelledPercent: 0 } },
     ];
     const bars = computeStackedBars(groups, 200, 24, 16);
     expect(bars).toHaveLength(2);
@@ -14,30 +14,36 @@ describe('computeStackedBars', () => {
     expect(bars[0].width).toBe(24);
   });
 
-  it('stacks segments bottom-to-top as cancelled, delayed, on_time, sized by percentage of chart height', () => {
+  it('stacks segments bottom-to-top as cancelled, delayed, early, onTime, sized by percentage of chart height', () => {
     const groups = [
-      { label: 'Off-peak', percentages: { onTimePercent: 70, delayedPercent: 20, cancelledPercent: 10 } },
+      { label: 'Off-peak', percentages: { earlyPercent: 15, onTimePercent: 55, delayedPercent: 20, cancelledPercent: 10 } },
     ];
     const [bar] = computeStackedBars(groups, 100, 24, 16);
-    expect(bar.segments).toHaveLength(3);
+    expect(bar.segments).toHaveLength(4);
 
     const cancelled = bar.segments.find((s) => s.status === 'cancelled')!;
     const delayed = bar.segments.find((s) => s.status === 'delayed')!;
+    const early = bar.segments.find((s) => s.status === 'early')!;
     const onTime = bar.segments.find((s) => s.status === 'onTime')!;
 
     expect(cancelled.height).toBeCloseTo(10);
     expect(delayed.height).toBeCloseTo(20);
-    expect(onTime.height).toBeCloseTo(70);
+    expect(early.height).toBeCloseTo(15);
+    expect(onTime.height).toBeCloseTo(55);
 
     // cancelled sits at the very bottom of a 100px-tall chart
     expect(cancelled.y).toBeCloseTo(90);
-    // on_time sits at the very top
+    // delayed sits above cancelled
+    expect(delayed.y).toBeCloseTo(70);
+    // early sits above delayed
+    expect(early.y).toBeCloseTo(55);
+    // onTime sits at the very top
     expect(onTime.y).toBeCloseTo(0);
   });
 
   it('omits a segment entirely when its percentage is zero', () => {
     const groups = [
-      { label: 'AM peak', percentages: { onTimePercent: 100, delayedPercent: 0, cancelledPercent: 0 } },
+      { label: 'AM peak', percentages: { earlyPercent: 0, onTimePercent: 100, delayedPercent: 0, cancelledPercent: 0 } },
     ];
     const [bar] = computeStackedBars(groups, 100, 24, 16);
     expect(bar.segments).toHaveLength(1);

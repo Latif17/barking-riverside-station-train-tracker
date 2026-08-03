@@ -11,13 +11,15 @@ const PEAK_LABELS: Record<PeakComparisonRow['peakPeriod'], string> = {
   off_peak: 'Off-peak',
 };
 
-const STATUS_COLOR_VAR: Record<'onTime' | 'delayed' | 'cancelled', string> = {
+const STATUS_COLOR_VAR: Record<'early' | 'onTime' | 'delayed' | 'cancelled', string> = {
+  early: '--status-early',
   onTime: '--status-on-time',
   delayed: '--status-delayed',
   cancelled: '--status-cancelled',
 };
 
-const STATUS_LABEL: Record<'onTime' | 'delayed' | 'cancelled', string> = {
+const STATUS_LABEL: Record<'early' | 'onTime' | 'delayed' | 'cancelled', string> = {
+  early: 'Early',
   onTime: 'On time',
   delayed: 'Delayed',
   cancelled: 'Cancelled',

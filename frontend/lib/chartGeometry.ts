@@ -1,5 +1,5 @@
 export interface StackedSegment {
-  status: 'cancelled' | 'delayed' | 'onTime';
+  status: 'cancelled' | 'delayed' | 'early' | 'onTime';
   y: number;
   height: number;
 }
@@ -12,6 +12,7 @@ export interface StackedBar {
 }
 
 interface GroupPercentages {
+  earlyPercent: number;
   onTimePercent: number;
   delayedPercent: number;
   cancelledPercent: number;
@@ -25,9 +26,10 @@ export function computeStackedBars(
 ): StackedBar[] {
   return groups.map((group, i) => {
     const x = i * (barWidth + barGap);
-    const segmentDefs: Array<['cancelled' | 'delayed' | 'onTime', number]> = [
+    const segmentDefs: Array<['cancelled' | 'delayed' | 'early' | 'onTime', number]> = [
       ['cancelled', group.percentages.cancelledPercent],
       ['delayed', group.percentages.delayedPercent],
+      ['early', group.percentages.earlyPercent],
       ['onTime', group.percentages.onTimePercent],
     ];
 

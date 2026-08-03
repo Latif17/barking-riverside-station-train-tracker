@@ -6,7 +6,7 @@ describe('StatTiles', () => {
   it('renders on-time, delayed, and cancelled percentages', () => {
     render(
       <StatTiles
-        percentages={{ onTimePercent: 82.5, delayedPercent: 12.3, cancelledPercent: 5.2, total: 120 }}
+        percentages={{ earlyPercent: 0, onTimePercent: 82.5, delayedPercent: 12.3, cancelledPercent: 5.2, total: 120 }}
       />,
     );
     expect(screen.getByText('83%')).toBeInTheDocument();
@@ -20,7 +20,7 @@ describe('StatTiles', () => {
   it('shows a based-on count', () => {
     render(
       <StatTiles
-        percentages={{ onTimePercent: 100, delayedPercent: 0, cancelledPercent: 0, total: 42 }}
+        percentages={{ earlyPercent: 0, onTimePercent: 100, delayedPercent: 0, cancelledPercent: 0, total: 42 }}
       />,
     );
     expect(screen.getByText(/42 services/)).toBeInTheDocument();
@@ -29,7 +29,7 @@ describe('StatTiles', () => {
   it('renders a message when there is no data', () => {
     render(
       <StatTiles
-        percentages={{ onTimePercent: 0, delayedPercent: 0, cancelledPercent: 0, total: 0 }}
+        percentages={{ earlyPercent: 0, onTimePercent: 0, delayedPercent: 0, cancelledPercent: 0, total: 0 }}
       />,
     );
     expect(screen.getByText(/no data/i)).toBeInTheDocument();
