@@ -2,105 +2,193 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Allow the tracking of early train deviations using negative delays without artificially clamping them to 0.
+**Goal:** Track early trains natively with an `'early'` status and negative `delay_minutes`, and visualize them explicitly on the frontend dashboard.
 
-**Architecture:** Remove `Math.max(0, ...)` wrappers around `delay_minutes` calculation in both the RTT client parser and the main polling loop's schedule drift adjustment. Early trains will thus have negative `delay_minutes` while keeping their `status` as `'on_time'`.
+**Architecture:** 
+1. Database: Update check constraints on the `status` column to allow `'early'`.
+2. Poller: Stop clamping negative delays, pass them through, and map `delay_minutes < 0` to `'early'`.
+3. Frontend: Aggregate early trains into new metrics and display them distinctly on the charts and tiles.
 
-**Tech Stack:** TypeScript, Node.js, Vitest.
+**Tech Stack:** Supabase (PostgreSQL), TypeScript, Node.js, Next.js, React, Vitest.
 
 ## Global Constraints
 - Node 18+ syntax.
 - All timestamps stay in UTC or are parsed carefully.
-- Existing tests must pass.
-- Status for early trains remains `'on_time'`.
+- Existing tests must be updated to pass.
+- Color for early status should be a distinct blue (e.g., `#3b82f6`).
 
 ---
 
-### Task 1: Update RTT Client parser
+### Task 1: Database Migration
 
 **Files:**
-- Modify: `poller/src/rttClient.ts:60-63`
-- Modify: `poller/test/rttClient.test.ts:50-57`
+- Create: `supabase/migrations/20260803112000_early_status.sql`
 
 **Interfaces:**
-- Consumes: `RttIndividualTemporalData.realtimeAdvertisedLateness`
-- Produces: `ScheduledServiceRow` with potentially negative `delay_minutes`
+- Consumes: Existing DB schema
+- Produces: Updated schema allowing `'early'` status on `scheduled_services.status` and `upstream_status`.
 
-- [ ] **Step 1: Write a failing test for early arrival**
+- [ ] **Step 1: Write migration**
 
-Modify `poller/test/rttClient.test.ts` to add a test for a negative `realtimeAdvertisedLateness`.
+```sql
+alter table scheduled_services drop constraint if exists scheduled_services_status_check;
+alter table scheduled_services add constraint scheduled_services_status_check check (status in ('pending', 'on_time', 'early', 'delayed', 'cancelled'));
 
-```typescript
-  it('maps a 2-minute early train with negative delay and on_time status', () => {
-    const earlyService = {
-      scheduleMetadata: { uniqueIdentity: 'gb-nr:L00000:2026-07-31', inPassengerService: true },
-      temporalData: {
-        arrival: { scheduleAdvertised: '2026-07-31T08:00:00.000Z', realtimeActual: '2026-07-31T07:58:00.000Z', realtimeAdvertisedLateness: -2 },
-      },
-    };
-    const rows = mapRttServiceToRows(earlyService);
-    expect(rows[0]?.status).toBe('on_time');
-    expect(rows[0]?.delay_minutes).toBe(-2);
-  });
+alter table scheduled_services drop constraint if exists scheduled_services_upstream_status_check;
+alter table scheduled_services add constraint scheduled_services_upstream_status_check check (upstream_status in ('pending', 'on_time', 'early', 'delayed', 'cancelled'));
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `cd poller && npx vitest run test/rttClient.test.ts`
-Expected: FAIL because `delay_minutes` is expected to be `-2` but receives `0` due to `Math.max(0, ...)`.
-
-- [ ] **Step 3: Write minimal implementation**
-
-In `poller/src/rttClient.ts`, modify the `delay_minutes` assignment (around line 62):
-
-```typescript
-    const delay_minutes = block.realtimeAdvertisedLateness ?? 0;
-```
-
-*(Ensure the subsequent `status` logic still uses `delay_minutes > 0` for `'delayed'`, which correctly bypasses negative delays to evaluate as `'on_time'` via `block.realtimeActual`)*.
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `cd poller && npx vitest run test/rttClient.test.ts`
-Expected: PASS
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 2: Commit**
 
 ```bash
-git add poller/src/rttClient.ts poller/test/rttClient.test.ts
-git commit -m "fix: allow negative delay minutes in rttClient for early trains"
+git add supabase/migrations
+git commit -m "feat: add early status to db schema"
 ```
 
 ---
 
-### Task 2: Update Main Poller shift adjustment
+### Task 2: Poller Updates
 
 **Files:**
-- Modify: `poller/src/index.ts:97-101`
+- Modify: `poller/src/types.ts`
+- Modify: `poller/src/rttClient.ts`
+- Modify: `poller/src/index.ts`
+- Modify: `poller/test/rttClient.test.ts`
+- Modify: `poller/test/index.test.ts`
 
 **Interfaces:**
-- Consumes: `ScheduledServiceRow` with potentially negative `delay_minutes`
+- Produces: Data with negative `delay_minutes` and `'early'` status.
 
-- [ ] **Step 1: Write minimal implementation**
+- [ ] **Step 1: Update type definitions**
 
-In `poller/src/index.ts`, modify the assignment of `row.delay_minutes` inside `pollOnce` (around line 101) to remove `Math.max`:
+In `poller/src/types.ts`, add `'early'` to `ServiceStatus`.
 
+- [ ] **Step 2: Update rttClient logic and tests**
+
+In `poller/src/rttClient.ts`, remove `Math.max(0, ...)` from `delay_minutes`. Update the status mapping logic:
 ```typescript
-      // Adjust delay_minutes to account for the shift from the expected static schedule
+    const delay_minutes = block.realtimeAdvertisedLateness ?? 0;
+    let status: 'pending' | 'on_time' | 'early' | 'delayed' | 'cancelled' = 'pending';
+
+    if (block.isCancelled) {
+      status = 'cancelled';
+    } else if (delay_minutes > 0) {
+      status = 'delayed';
+    } else if (delay_minutes < 0) {
+      status = 'early';
+    } else if (block.realtimeActual) {
+      status = 'on_time';
+    }
+```
+
+Update `poller/test/rttClient.test.ts` to add a test for an early train mapping correctly to `-2` delay and `'early'` status. Run `cd poller && npx vitest run test/rttClient.test.ts` to ensure it passes.
+
+- [ ] **Step 3: Update main poller and tests**
+
+In `poller/src/index.ts`, remove `Math.max` for `row.delay_minutes`:
+```typescript
       const rttTimeMs = new Date(bgvRow.scheduled_time).getTime();
       const scheduleShiftMinutes = Math.round((rttTimeMs - timeMs) / 60000);
       const rttDelay = bgvRow.delay_minutes ?? 0;
       row.delay_minutes = scheduleShiftMinutes + rttDelay;
 ```
 
-- [ ] **Step 2: Run all tests to verify they pass**
+*(Note: The main poller merges from DB/RTT but relies on the DB or RTT's already assigned `status`. If it has to create a status from a DB fallback, ensure no `Math.max` restricts negative values. The assignment logic `row.status = bgvRow.status` will now pass `'early'` naturally).*
 
-Run: `cd poller && npx vitest run`
-Expected: PASS
+Run `cd poller && npx vitest run test/index.test.ts`. Fix any broken mock data if needed.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add poller/src/index.ts
-git commit -m "fix: remove delay clamp in poller adjustment for early trains"
+git add poller
+git commit -m "feat: track early trains in poller"
+```
+
+---
+
+### Task 3: Frontend Data Aggregation
+
+**Files:**
+- Modify: `frontend/lib/types.ts`
+- Modify: `frontend/lib/aggregate.ts`
+- Modify: `frontend/test/aggregate.test.ts`
+- Modify: `frontend/lib/chartGeometry.ts`
+
+**Interfaces:**
+- Produces: UI-ready grouped percentage data including `early` and `earlyPercent`.
+
+- [ ] **Step 1: Update frontend types**
+
+In `frontend/lib/types.ts`, add `'early'` to `ServiceStatus`.
+
+- [ ] **Step 2: Update aggregate logic**
+
+In `frontend/lib/aggregate.ts`:
+- Update `StatusCounts` to include `early: number`.
+- Update `StatusPercentages` to include `earlyPercent: number`.
+- Initialize `early: 0` in counts.
+- Add `else if (row.status === 'early') counts.early += 1;`.
+- Update `resolved` to include `counts.early`.
+- Calculate `earlyPercent`.
+
+Update `frontend/test/aggregate.test.ts` and run `cd frontend && npm run test` to verify.
+
+- [ ] **Step 3: Update chart geometry**
+
+In `frontend/lib/chartGeometry.ts`:
+- Update type references to include `'early'`.
+- In the `segmentDefs` array, insert `['early', group.percentages.earlyPercent]` between `'onTime'` and `'delayed'`.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add frontend/lib frontend/test
+git commit -m "feat: add frontend data aggregation for early trains"
+```
+
+---
+
+### Task 4: Frontend UI Updates
+
+**Files:**
+- Modify: `frontend/app/globals.css`
+- Modify: `frontend/components/StatTiles.tsx`
+- Modify: `frontend/components/PeakComparisonChart.tsx`
+- Modify: `frontend/test/StatTiles.test.tsx`
+- Modify: `frontend/test/PeakComparisonChart.test.tsx`
+
+**Interfaces:**
+- Consumes: New aggregated data fields.
+
+- [ ] **Step 1: Add CSS variable**
+
+In `frontend/app/globals.css`:
+```css
+  --status-early: #3b82f6;
+```
+
+- [ ] **Step 2: Update components**
+
+In `frontend/components/StatTiles.tsx`, add a new `<Tile />` for "Early":
+```tsx
+        <Tile label="Early" value={percentages.earlyPercent} colorVar="--status-early" />
+```
+
+In `frontend/components/PeakComparisonChart.tsx`:
+- Add `'early'` to `STATUS_COLOR_VAR` (mapped to `--status-early`).
+- Add `'early'` to `STATUS_LABEL` (mapped to `'Early'`).
+- Update the legend mapping to include `'early'`.
+- Fix any TS type definitions that list the statuses manually.
+
+- [ ] **Step 3: Update tests**
+
+Update `frontend/test/StatTiles.test.tsx` and `frontend/test/PeakComparisonChart.test.tsx` to include `early` and `earlyPercent` in their mock data, and check that "Early" renders in the document.
+
+Run `cd frontend && npm run test`.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add frontend
+git commit -m "feat: visualize early trains on dashboard"
 ```
