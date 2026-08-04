@@ -108,10 +108,11 @@ describe('pollOnce during sleep period', () => {
     const targetRow = upsertedRows.find((r) => r.scheduled_time === serviceTime && r.direction === 'arriving');
 
     expect(targetRow).toBeDefined();
-    expect(targetRow?.status).toBe('on_time');
+    expect(targetRow?.status).toBe('delayed');
     expect(targetRow?.rtt_uid).toBe('W12345');
     expect(targetRow?.upstream_status).toBe('delayed');
     expect(targetRow?.upstream_delay_minutes).toBe(3);
+    expect(targetRow?.delay_minutes).toBe(3);
   });
 
   it('correctly maps early trains with negative delay and early status in pollOnce', async () => {

@@ -127,6 +127,12 @@ export async function pollOnce(
         if (row.upstream_status === 'pending' && upstreamTimeSinceScheduled >= 30 * 60 * 1000) {
           row.upstream_status = 'cancelled';
         }
+
+        if (row.upstream_status !== 'cancelled' && row.upstream_status !== 'pending') {
+          row.status = row.upstream_status;
+          row.observed_time = row.upstream_observed_time;
+          row.delay_minutes = row.upstream_delay_minutes;
+        }
       } else if (dbRow?.upstream_status) {
         row.upstream_status = dbRow.upstream_status;
         row.upstream_observed_time = dbRow.upstream_observed_time;
@@ -134,6 +140,12 @@ export async function pollOnce(
 
         if (row.upstream_status === 'pending' && timeSinceScheduled >= 30 * 60 * 1000) {
           row.upstream_status = 'cancelled';
+        }
+
+        if (row.upstream_status !== 'cancelled' && row.upstream_status !== 'pending') {
+          row.status = row.upstream_status;
+          row.observed_time = row.upstream_observed_time;
+          row.delay_minutes = row.upstream_delay_minutes;
         }
       } else {
         row.upstream_status = 'cancelled';
