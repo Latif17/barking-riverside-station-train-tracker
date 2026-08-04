@@ -25,8 +25,8 @@ describe('mapRttServiceToRows', () => {
     expect(rows).toEqual([{
       service_date: '2026-07-31',
       direction: 'arriving',
-      scheduled_time: '2026-07-31T07:04:00.000Z',
-      peak_period: computePeakPeriod(new Date('2026-07-31T07:04:00.000Z')),
+      scheduled_time: '2026-07-31T06:04:00.000Z',
+      peak_period: computePeakPeriod(new Date('2026-07-31T06:04:00.000Z')),
       status: 'cancelled',
       observed_time: null,
       delay_minutes: 0,
@@ -41,10 +41,10 @@ describe('mapRttServiceToRows', () => {
     expect(rows).toEqual([{
       service_date: '2026-07-31',
       direction: 'departing',
-      scheduled_time: '2026-07-31T07:18:00.000Z',
-      peak_period: computePeakPeriod(new Date('2026-07-31T07:18:00.000Z')),
+      scheduled_time: '2026-07-31T06:18:00.000Z',
+      peak_period: computePeakPeriod(new Date('2026-07-31T06:18:00.000Z')),
       status: 'delayed',
-      observed_time: '2026-07-31T07:23:12.000Z',
+      observed_time: '2026-07-31T06:23:00.000Z',
       delay_minutes: 5,
       rtt_uid: 'gb-nr:L01525:2026-07-31',
       cancel_reason: null,
@@ -74,10 +74,10 @@ describe('mapRttServiceToRows', () => {
     expect(rows).toEqual([{
       service_date: '2026-07-31',
       direction: 'arriving',
-      scheduled_time: '2026-07-31T08:00:00.000Z',
-      peak_period: computePeakPeriod(new Date('2026-07-31T08:00:00.000Z')),
+      scheduled_time: '2026-07-31T07:00:00.000Z',
+      peak_period: computePeakPeriod(new Date('2026-07-31T07:00:00.000Z')),
       status: 'early',
-      observed_time: '2026-07-31T07:58:00.000Z',
+      observed_time: '2026-07-31T06:58:00.000Z',
       delay_minutes: -2,
       rtt_uid: 'gb-nr:L01599:2026-07-31',
       cancel_reason: null,
@@ -90,8 +90,8 @@ describe('mapRttServiceToRows', () => {
     expect(rows).toEqual([{
       service_date: '2026-07-31',
       direction: 'departing',
-      scheduled_time: '2026-07-31T09:03:00.000Z',
-      peak_period: computePeakPeriod(new Date('2026-07-31T09:03:00.000Z')),
+      scheduled_time: '2026-07-31T08:03:00.000Z',
+      peak_period: computePeakPeriod(new Date('2026-07-31T08:03:00.000Z')),
       status: 'pending',
       observed_time: null,
       delay_minutes: 0,
@@ -198,7 +198,7 @@ describe('fetchTodayRows', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
     // Verify one of the mapped services from fixture
-    const match = rowsArray.find((r) => r.scheduled_time === '2026-07-31T07:04:00.000Z' && r.direction === 'arriving');
+    const match = rowsArray.find((r) => r.scheduled_time === '2026-07-31T06:04:00.000Z' && r.direction === 'arriving');
     expect(match).toBeDefined();
     expect(match?.status).toBe('cancelled');
     expect(match?.rtt_uid).toBe('gb-nr:L01500:2026-07-31');

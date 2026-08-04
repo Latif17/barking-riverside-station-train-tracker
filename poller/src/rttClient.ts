@@ -1,6 +1,6 @@
 // poller/src/rttClient.ts
 import { computePeakPeriod } from './peakPeriod.js';
-import { londonTimeToUtcIso } from './dateHelpers.js';
+import { londonTimeToUtcIso, londonIsoToUtcIso } from './dateHelpers.js';
 import type { Direction, ScheduledServiceRow, ServiceStatus } from './types.js';
 import type { TokenProvider } from './rttAuth.js';
 
@@ -58,7 +58,7 @@ export function mapRttServiceToRows(service: RttService): ScheduledServiceRow[] 
   if (service.scheduleMetadata?.inPassengerService === false) return [];
 
   return blocks.map(({ direction, block }) => {
-    const scheduled_time = new Date(block.scheduleAdvertised!).toISOString();
+    const scheduled_time = londonIsoToUtcIso(block.scheduleAdvertised!);
     const service_date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London' }).format(
       new Date(scheduled_time),
     );
@@ -83,7 +83,7 @@ export function mapRttServiceToRows(service: RttService): ScheduledServiceRow[] 
       scheduled_time,
       peak_period,
       status,
-      observed_time: block.realtimeActual ? new Date(block.realtimeActual).toISOString() : null,
+      observed_time: block.realtimeActual ? londonIsoToUtcIso(block.realtimeActual) : null,
       delay_minutes,
       rtt_uid,
       cancel_reason: block.cancellationReasonShortText ?? block.cancellationReasonCode ?? null,
